@@ -1,0 +1,3 @@
+import ReliosCLI
+
+ReliosCommand.main()
