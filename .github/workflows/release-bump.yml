@@ -1,0 +1,60 @@
+name: Release Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Semver component to bump'
+        type: choice
+        options: [patch, minor, major]
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute next version
+        id: ver
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          # Latest stable tag (exclude any with a hyphen, i.e. prereleases).
+          LATEST=$(git tag -l 'v*' | grep -vE '-' | sort -V | tail -1 || true)
+          if [ -z "$LATEST" ]; then
+            # Fall back to the core of the newest prerelease tag.
+            LATEST=$(git tag -l 'v*' | sort -V | tail -1 | sed -E 's/-.*//')
+          fi
+          if [ -z "$LATEST" ]; then
+            echo "::error::No v* tags found"
+            exit 1
+          fi
+          VER=${LATEST#v}
+          IFS=. read -r MAJOR MINOR PATCH <<< "$VER"
+          case "${{ inputs.bump }}" in
+            major) NEXT="v$((MAJOR+1)).0.0" ;;
+            minor) NEXT="v${MAJOR}.$((MINOR+1)).0" ;;
+            patch) NEXT="v${MAJOR}.${MINOR}.$((PATCH+1))" ;;
+          esac
+          if git rev-parse "$NEXT" >/dev/null 2>&1; then
+            echo "::error::Tag $NEXT already exists"
+            exit 1
+          fi
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "next=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "Latest stable=$LATEST  Next=$NEXT"
+
+      - name: Create and push tag
+        env:
+          NEXT: ${{ steps.ver.outputs.next }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEXT" -m "$NEXT"
+          git push origin "$NEXT"
