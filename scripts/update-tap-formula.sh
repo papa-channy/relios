@@ -33,7 +33,7 @@ log "SHA256=$SHA256"
 log "NEW_URL=$NEW_URL"
 
 # Fetch current formula.
-RESP=$(curl -fsSL \
+RESP=$(curl --fail-with-body -sSL --max-time 30 \
   -H "Authorization: Bearer $TAP_TOKEN" \
   -H "Accept: application/vnd.github+json" \
   -H "X-GitHub-Api-Version: 2022-11-28" \
@@ -90,7 +90,9 @@ PAYLOAD=$(jq -n \
   '{message:$msg, content:$content, sha:$sha, branch:$branch}')
 
 log "PUT ${API}"
-HTTP_CODE=$(curl -sS -o /tmp/tap-put-resp.json -w '%{http_code}' \
+RESP_FILE=$(mktemp)
+trap 'rm -f "$RESP_FILE"' EXIT
+HTTP_CODE=$(curl -sS --max-time 30 -o "$RESP_FILE" -w '%{http_code}' \
   -X PUT \
   -H "Authorization: Bearer $TAP_TOKEN" \
   -H "Accept: application/vnd.github+json" \
@@ -101,9 +103,9 @@ HTTP_CODE=$(curl -sS -o /tmp/tap-put-resp.json -w '%{http_code}' \
 
 if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
   log "ERROR: PUT returned $HTTP_CODE"
-  cat /tmp/tap-put-resp.json >&2
+  cat "$RESP_FILE" >&2
   exit 1
 fi
 
-COMMIT_SHA=$(jq -r .commit.sha /tmp/tap-put-resp.json)
+COMMIT_SHA=$(jq -r .commit.sha "$RESP_FILE")
 log "OK — tap commit ${COMMIT_SHA}"

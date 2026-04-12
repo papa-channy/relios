@@ -35,6 +35,10 @@ jobs:
             echo "::error::No v* tags found"
             exit 1
           fi
+          if ! [[ "$LATEST" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Unexpected tag format: $LATEST (expected vMAJOR.MINOR.PATCH)"
+            exit 1
+          fi
           VER=${LATEST#v}
           IFS=. read -r MAJOR MINOR PATCH <<< "$VER"
           case "${{ inputs.bump }}" in
