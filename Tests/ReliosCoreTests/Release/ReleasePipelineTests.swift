@@ -378,6 +378,115 @@ final class ReleasePipelineTests: XCTestCase {
         )
     }
 
+    // MARK: - passthrough mode
+
+    func test_passthrough_dryRunSucceedsWithPreBuiltApp() throws {
+        let fs = makePassthroughFileSystem()
+        let spec = try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
+        let pipeline = ReleasePipeline(fs: fs, process: MockProcessRunner(result: .success))
+
+        let summary = try pipeline.run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: true)
+        )
+
+        XCTAssertEqual(summary.appName, "MyXcodeApp")
+        XCTAssertTrue(summary.dryRun)
+        // binaryPath should point to the .app (not a binary)
+        XCTAssertTrue(summary.binaryPath.contains("MyXcodeApp.app"))
+    }
+
+    func test_passthrough_dryRunMakesZeroWrites() throws {
+        let fs = makePassthroughFileSystem()
+        let spec = try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
+        let pipeline = ReleasePipeline(fs: fs, process: MockProcessRunner(result: .success))
+
+        _ = try pipeline.run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: true)
+        )
+
+        XCTAssertEqual(fs.writeLog, [],
+                       "passthrough dry-run must make zero writes")
+    }
+
+    func test_passthrough_nonDryRunSkipsAssemblyAndPlist() throws {
+        let fs = makePassthroughFileSystem()
+        let spec = try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
+        let process = makeInstallReadyProcess()
+        let pipeline = ReleasePipeline(fs: fs, process: process)
+
+        let summary = try pipeline.run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: false)
+        )
+
+        // Version source IS updated (passthrough still bumps version)
+        XCTAssertTrue(
+            fs.writeLog.contains("/proj/AppVersion.swift"),
+            "passthrough must still update version source"
+        )
+
+        // Assembly is SKIPPED — no binary written into Contents/MacOS
+        XCTAssertFalse(
+            fs.writeLog.contains(where: { $0.contains("Contents/MacOS") }),
+            "passthrough must NOT assemble app bundle"
+        )
+
+        // Info.plist is SKIPPED
+        XCTAssertFalse(
+            fs.writeLog.contains(where: { $0.contains("Info.plist") }),
+            "passthrough must NOT generate Info.plist"
+        )
+
+        // signing.mode = "keep" → codesign is NOT called
+        XCTAssertFalse(
+            process.calls.contains(where: { $0.command.contains("codesign") }),
+            "passthrough with keep signing must NOT call codesign"
+        )
+
+        XCTAssertFalse(summary.dryRun)
+    }
+
+    func test_passthrough_failsWhenAppDoesNotExistAfterBuild() throws {
+        // .app directory NOT seeded → should fail at artifact verification
+        let fs = InMemoryFileSystem(files: [
+            "/proj/relios.toml": SampleTOMLs.xcodebuildPassthrough,
+            "/proj/AppVersion.swift": appVersionSwift,
+            // NO build/Release/MyXcodeApp.app
+        ])
+        let spec = try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
+        let pipeline = ReleasePipeline(fs: fs, process: MockProcessRunner(result: .success))
+
+        XCTAssertThrowsError(try pipeline.run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: true)
+        )) { error in
+            guard let e = error as? ReleaseError else { return XCTFail("wrong type") }
+            XCTAssertEqual(e.step, .verifyBuildArtifact)
+        }
+    }
+
+    /// Builds an InMemoryFileSystem for passthrough tests: relios.toml with
+    /// xcodebuild+passthrough config, AppVersion.swift, and a fake .app directory
+    /// at the xcodebuild -derivedDataPath output location.
+    private func makePassthroughFileSystem() -> InMemoryFileSystem {
+        InMemoryFileSystem(
+            files: [
+                "/proj/relios.toml": SampleTOMLs.xcodebuildPassthrough,
+                "/proj/AppVersion.swift": appVersionSwift,
+            ],
+            directories: [
+                "/proj/build/Build/Products/Release/MyXcodeApp.app",
+                "/proj/build/Build/Products/Release/MyXcodeApp.app/Contents",
+            ]
+        )
+    }
+
     // MARK: - c-3 (regression)
 
     func test_c3_infoPlistIsReadableAndContainsCorrectVersion() throws {

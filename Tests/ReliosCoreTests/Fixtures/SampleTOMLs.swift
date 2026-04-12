@@ -34,6 +34,7 @@ enum SampleTOMLs {
     [bundle]
     output_path = "dist/PortfolioManager.app"
     plist_mode = "generate"
+    mode = "assembly"
 
     [install]
     path = "/Applications/PortfolioManager.app"
@@ -87,5 +88,48 @@ enum SampleTOMLs {
 
     [signing]
     mode = "adhoc"
+    """
+
+    /// Xcodebuild project with passthrough mode.
+    static let xcodebuildPassthrough = """
+    [app]
+    name = "MyXcodeApp"
+    display_name = "My Xcode App"
+    bundle_id = "com.example.myxcodeapp"
+    min_macos = "14.0"
+    category = "public.app-category.developer-tools"
+
+    [project]
+    type = "xcodebuild"
+    root = "."
+    binary_target = "MyXcodeApp"
+
+    [version]
+    source_file = "AppVersion.swift"
+    version_pattern = 'static let current = "(.*)"'
+    build_pattern = 'static let build = "(.*)"'
+
+    [build]
+    command = "xcodebuild -scheme MyXcodeApp -configuration Release -derivedDataPath build build"
+    binary_path = ""
+    resource_bundle_path = ""
+
+    [assets]
+    icon_path = ""
+
+    [bundle]
+    output_path = "build/Build/Products/Release/MyXcodeApp.app"
+    plist_mode = "generate"
+    mode = "passthrough"
+
+    [install]
+    path = "/Applications/MyXcodeApp.app"
+    auto_open = true
+    backup_dir = "dist/app-backups"
+    keep_backups = 3
+    quit_running_app = true
+
+    [signing]
+    mode = "keep"
     """
 }

@@ -12,6 +12,8 @@ public struct ReleaseManifest: Codable, Equatable, Sendable {
     public let installPath: String?
     public let backupPath: String?
     public let signingMode: String
+    /// "assembly" or "passthrough" — records how the .app was produced.
+    public let bundleMode: String
     public let launchedAfterInstall: Bool
     public let timestamp: String
 
@@ -24,6 +26,7 @@ public struct ReleaseManifest: Codable, Equatable, Sendable {
         installPath: String?,
         backupPath: String?,
         signingMode: String,
+        bundleMode: String,
         launchedAfterInstall: Bool,
         timestamp: String
     ) {
@@ -35,6 +38,7 @@ public struct ReleaseManifest: Codable, Equatable, Sendable {
         self.installPath = installPath
         self.backupPath = backupPath
         self.signingMode = signingMode
+        self.bundleMode = bundleMode
         self.launchedAfterInstall = launchedAfterInstall
         self.timestamp = timestamp
     }
@@ -48,6 +52,7 @@ public struct ReleaseManifest: Codable, Equatable, Sendable {
         case installPath = "install_path"
         case backupPath = "backup_path"
         case signingMode = "signing_mode"
+        case bundleMode = "bundle_mode"
         case launchedAfterInstall = "launched_after_install"
         case timestamp
     }

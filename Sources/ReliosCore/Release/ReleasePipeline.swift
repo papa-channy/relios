@@ -23,6 +23,8 @@ public struct ReleasePipeline: Sendable {
         projectRoot: String,
         options: ReleaseOptions
     ) throws -> ReleaseSummary {
+        let isPassthrough = spec.bundle.mode == .passthrough
+
         // Steps 1-5: shared by dry-run and non-dry-run
         try preflightValidation(spec: spec, projectRoot: projectRoot)
 
@@ -39,10 +41,20 @@ public struct ReleasePipeline: Sendable {
 
         try runBuild(spec: spec, projectRoot: projectRoot)
 
-        let binaryPath = try verifyBuildArtifact(
-            spec: spec,
-            projectRoot: projectRoot
-        )
+        let outputPath = projectRoot + "/" + spec.bundle.outputPath
+
+        // In assembly mode, locate the binary produced by the build.
+        // In passthrough mode, verify the .app the build produced exists.
+        let binaryPath: String
+        if isPassthrough {
+            try verifyAppExists(at: outputPath)
+            binaryPath = outputPath
+        } else {
+            binaryPath = try verifyBuildArtifact(
+                spec: spec,
+                projectRoot: projectRoot
+            )
+        }
 
         // Dry-run: stop here, NO writes.
         if options.dryRun {
@@ -54,7 +66,9 @@ public struct ReleasePipeline: Sendable {
                 nextBuild: nextBuild,
                 buildCommand: spec.build.command,
                 binaryPath: binaryPath,
-                dryRun: true
+                dryRun: true,
+                passthrough: isPassthrough,
+                signingMode: spec.signing.mode.rawValue
             )
         }
 
@@ -66,22 +80,28 @@ public struct ReleasePipeline: Sendable {
             build: nextBuild
         )
 
-        let outputPath = projectRoot + "/" + spec.bundle.outputPath
-        try assembleAppBundle(
-            spec: spec,
-            binarySourcePath: binaryPath,
-            outputPath: outputPath,
-            projectRoot: projectRoot
-        )
+        // Assembly mode: build .app from binary + resources + Info.plist.
+        // Passthrough mode: .app already exists — skip straight to signing.
+        if !isPassthrough {
+            try assembleAppBundle(
+                spec: spec,
+                binarySourcePath: binaryPath,
+                outputPath: outputPath,
+                projectRoot: projectRoot
+            )
 
-        try writeInfoPlist(
-            spec: spec,
-            version: nextVersion,
-            build: nextBuild,
-            outputPath: outputPath
-        )
+            try writeInfoPlist(
+                spec: spec,
+                version: nextVersion,
+                build: nextBuild,
+                outputPath: outputPath
+            )
+        }
 
-        try signAdhoc(appPath: outputPath)
+        if spec.signing.mode == .adhoc {
+            try signAdhoc(appPath: outputPath)
+        }
+        // .keep → skip signing, preserve existing signature
 
         // Steps 10-13: install phase
         let installPath = options.installPath ?? spec.install.path
@@ -129,6 +149,8 @@ public struct ReleasePipeline: Sendable {
             buildCommand: spec.build.command,
             binaryPath: binaryPath,
             dryRun: false,
+            passthrough: isPassthrough,
+            signingMode: spec.signing.mode.rawValue,
             bundlePath: outputPath,
             installedAt: installPath,
             backupPath: backupZipPath,
@@ -146,6 +168,7 @@ public struct ReleasePipeline: Sendable {
             process: process
         )
         let rules: [any ValidationRule] = [
+            XcodeProjectGuardRule(),
             SpecValidityRule(),
             VersionSourceRule(),
             BuildReadinessRule(),
@@ -220,6 +243,13 @@ public struct ReleasePipeline: Sendable {
             throw ReleaseError.artifactNotFound(searched: searched)
         } catch {
             throw ReleaseError.artifactNotFound(searched: [])
+        }
+    }
+
+    /// Passthrough mode: verify the pre-built .app exists at the expected path.
+    private func verifyAppExists(at path: String) throws {
+        guard fs.isDirectory(at: path) else {
+            throw ReleaseError.artifactNotFound(searched: [path])
         }
     }
 
@@ -402,6 +432,7 @@ public struct ReleasePipeline: Sendable {
             installPath: installPath,
             backupPath: backupPath,
             signingMode: spec.signing.mode.rawValue,
+            bundleMode: spec.bundle.mode.rawValue,
             launchedAfterInstall: launched,
             timestamp: timestamp
         )

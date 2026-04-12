@@ -58,7 +58,7 @@ public struct SpecSkeletonWriter: Sendable {
         category = "public.app-category.developer-tools"
 
         [project]
-        type = "swiftpm"
+        type = "\(s.projectType.rawValue)"
         root = "."
         binary_target = "\(s.binaryTarget)"
 
@@ -69,7 +69,7 @@ public struct SpecSkeletonWriter: Sendable {
 
         [build]
         command = "\(s.buildCommand)"
-        binary_path = ".build/release/\(s.binaryTarget)"
+        binary_path = "\(s.binaryPath)"
         resource_bundle_path = ""
 
         [assets]
@@ -78,6 +78,7 @@ public struct SpecSkeletonWriter: Sendable {
         [bundle]
         output_path = "\(s.outputAppPath)"
         plist_mode = "generate"
+        mode = "\(s.bundleMode.rawValue)"
 
         [install]
         path = "\(s.installPath)"
@@ -87,7 +88,7 @@ public struct SpecSkeletonWriter: Sendable {
         quit_running_app = true
 
         [signing]
-        mode = "adhoc"
+        mode = "\(s.signingMode.rawValue)"
         """
     }
 }

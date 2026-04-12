@@ -31,7 +31,7 @@ final class VersionSourceRuleTests: XCTestCase {
         let result = VersionSourceRule().evaluate(context)
 
         if case .ok(let title) = result {
-            XCTAssertEqual(title, "version source is readable")
+            XCTAssertEqual(title, "version source readable")
         } else {
             XCTFail("expected .ok, got \(result)")
         }

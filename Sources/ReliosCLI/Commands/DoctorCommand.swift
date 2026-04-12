@@ -48,6 +48,7 @@ public struct DoctorCommand: ParsableCommand {
         )
 
         let runner = DoctorRunner(rules: [
+            XcodeProjectGuardRule(),
             SpecValidityRule(),
             VersionSourceRule(),
             BuildReadinessRule(),

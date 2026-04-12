@@ -38,6 +38,6 @@ public struct VersionSourceRule: ValidationRule {
             )
         }
 
-        return .ok(title: "version source is readable")
+        return .ok(title: "version source readable")
     }
 }

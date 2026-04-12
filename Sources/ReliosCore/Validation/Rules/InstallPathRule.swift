@@ -19,6 +19,6 @@ public struct InstallPathRule: ValidationRule {
             )
         }
 
-        return .ok(title: "install path is writable")
+        return .ok(title: "install path writable")
     }
 }

@@ -72,6 +72,7 @@ final class ReleaseManifestTests: XCTestCase {
     private func makeManifest(
         version: String,
         build: String,
+        bundleMode: String = "assembly",
         timestamp: String = "2026-04-11T10:00:00Z"
     ) -> ReleaseManifest {
         ReleaseManifest(
@@ -83,6 +84,7 @@ final class ReleaseManifestTests: XCTestCase {
             installPath: "/Applications/TestApp.app",
             backupPath: nil,
             signingMode: "adhoc",
+            bundleMode: bundleMode,
             launchedAfterInstall: false,
             timestamp: timestamp
         )

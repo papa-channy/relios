@@ -10,7 +10,7 @@ extension InitError {
     public var shortReason: String {
         switch self {
         case .notSwiftPMProject(let root):
-            return "No Package.swift found at \(root)"
+            return "No Package.swift or Xcode project found at \(root)"
         case .writeFailed(let path, _):
             return "Could not write relios.toml to \(path)"
         }
@@ -19,7 +19,7 @@ extension InitError {
     public var shortFix: String {
         switch self {
         case .notSwiftPMProject:
-            return "Run `relios init` from the root of a SwiftPM project (one containing Package.swift)"
+            return "Run `relios init` from the root of a SwiftPM project (Package.swift) or Xcode project (.xcodeproj / .xcworkspace / project.yml)"
         case .writeFailed:
             return "Check directory permissions"
         }

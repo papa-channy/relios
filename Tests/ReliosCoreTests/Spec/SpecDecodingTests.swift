@@ -59,6 +59,7 @@ final class SpecDecodingTests: XCTestCase {
         let spec = try loadFullSample()
         XCTAssertEqual(spec.bundle.outputPath, "dist/PortfolioManager.app")
         XCTAssertEqual(spec.bundle.plistMode,  .generate)
+        XCTAssertEqual(spec.bundle.mode,       .assembly)
     }
 
     func test_gate2_install_section_isMappedExactly() throws {
@@ -73,6 +74,22 @@ final class SpecDecodingTests: XCTestCase {
     func test_gate2_signing_section_isMappedExactly() throws {
         let spec = try loadFullSample()
         XCTAssertEqual(spec.signing.mode, .adhoc)
+    }
+
+    // MARK: - xcodebuild + passthrough
+
+    func test_decodesXcodebuildPassthroughSample() throws {
+        let spec = try loadXcodebuildPassthrough()
+        XCTAssertEqual(spec.project.type, .xcodebuild)
+        XCTAssertEqual(spec.bundle.mode,  .passthrough)
+        XCTAssertEqual(spec.app.name,     "MyXcodeApp")
+        XCTAssertTrue(spec.build.command.contains("xcodebuild"))
+    }
+
+    func test_bundleModeDefaultsToAssemblyWhenOmitted() throws {
+        let spec = try loadMinimalWithEmptyOptionals()
+        XCTAssertEqual(spec.bundle.mode, .assembly,
+                       "mode must default to .assembly for backward compat")
     }
 
     // MARK: - Gate 3
@@ -149,6 +166,13 @@ final class SpecDecodingTests: XCTestCase {
     private func loadMinimalWithEmptyOptionals() throws -> ReleaseSpec {
         let fs = InMemoryFileSystem(files: [
             "/proj/relios.toml": SampleTOMLs.minimalWithEmptyOptionals
+        ])
+        return try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
+    }
+
+    private func loadXcodebuildPassthrough() throws -> ReleaseSpec {
+        let fs = InMemoryFileSystem(files: [
+            "/proj/relios.toml": SampleTOMLs.xcodebuildPassthrough
         ])
         return try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
     }

@@ -65,13 +65,24 @@ public struct InitCommand: ParsableCommand {
         }
         print("")
         print("Detected:")
-        print("  project type:  swiftpm")
+        print("  project type:  \(s.projectType.rawValue)")
         print("  binary target: \(s.binaryTarget)")
+        if s.bundleMode == .passthrough {
+            print("  bundle mode:   passthrough (Xcode project)")
+        }
         print("")
         print("Review before first release:")
         print("  [app].bundle_id      (currently \(s.bundleId))")
         if createdFiles.contains("AppVersion.swift") {
             print("  AppVersion.swift     (generated with 0.1.0 build 1)")
+        }
+        if s.projectType == .xcodebuild {
+            print("  [build].command      (verify scheme name matches your project)")
+            print("  [bundle].output_path (MUST match where xcodebuild places the .app)")
+            print("")
+            print("  Note: scheme name was guessed from the .xcodeproj filename.")
+            print("  If your scheme name differs, update [build].command and")
+            print("  [bundle].output_path accordingly.")
         }
         print("  [assets].icon_path   (currently empty)")
         print("")

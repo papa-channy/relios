@@ -17,6 +17,7 @@ final class InspectReaderTests: XCTestCase {
             installPath: "/Applications/TestApp.app",
             backupPath: nil,
             signingMode: "adhoc",
+            bundleMode: "assembly",
             launchedAfterInstall: true,
             timestamp: "2026-04-11T10:00:00Z"
         )

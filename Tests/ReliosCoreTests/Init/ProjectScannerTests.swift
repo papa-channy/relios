@@ -2,13 +2,14 @@ import XCTest
 import ReliosCore
 import ReliosSupport
 
-/// Locks the (c-1) Init slice's scanner contract:
-///   - missing Package.swift → throw
-///   - canonical SwiftPM layout → detect target name
+/// Locks the Init slice's scanner contract:
+///   - missing Package.swift (no Xcode markers) → throw
+///   - canonical SwiftPM layout → detect target name, type = .swiftpm
+///   - Xcode markers → detect scheme name, type = .xcodebuild
 ///   - any "couldn't detect" branch → fall back, never crash
 final class ProjectScannerTests: XCTestCase {
 
-    func test_throwsWhenPackageSwiftIsMissing() {
+    func test_throwsWhenNeitherPackageSwiftNorXcodeMarkersExist() {
         let fs = InMemoryFileSystem(files: [:])
         let scanner = ProjectScanner(fs: fs)
 
@@ -24,6 +25,8 @@ final class ProjectScannerTests: XCTestCase {
             }
         }
     }
+
+    // MARK: - SwiftPM detection
 
     func test_detectsBinaryTargetFromCanonicalSwiftPMLayout() throws {
         let fs = InMemoryFileSystem(files: [
@@ -52,6 +55,73 @@ final class ProjectScannerTests: XCTestCase {
         // Deterministic: alphabetically first wins.
         XCTAssertEqual(result.binaryTarget, "Alpha")
     }
+
+    // MARK: - Xcode project detection
+
+    func test_detectsXcodeprojAsXcodebuildType() throws {
+        let fs = InMemoryFileSystem(
+            files: ["/proj/Package.swift": "// manifest"],
+            directories: ["/proj/MyApp.xcodeproj"]
+        )
+        let scanner = ProjectScanner(fs: fs)
+
+        let result = try scanner.scan(root: "/proj")
+
+        XCTAssertEqual(result.projectType, .xcodebuild)
+        XCTAssertEqual(result.binaryTarget, "MyApp")
+    }
+
+    func test_detectsXcworkspaceAsXcodebuildType() throws {
+        let fs = InMemoryFileSystem(
+            files: [:],
+            directories: ["/proj/MyApp.xcworkspace"]
+        )
+        let scanner = ProjectScanner(fs: fs)
+
+        let result = try scanner.scan(root: "/proj")
+
+        XCTAssertEqual(result.projectType, .xcodebuild)
+    }
+
+    func test_detectsProjectYmlAsXcodebuildType() throws {
+        let fs = InMemoryFileSystem(files: [
+            "/proj/project.yml": "name: MyApp",
+        ])
+        let scanner = ProjectScanner(fs: fs)
+
+        let result = try scanner.scan(root: "/proj")
+
+        XCTAssertEqual(result.projectType, .xcodebuild)
+    }
+
+    func test_xcodeMarkersTakePriorityOverPackageSwift() throws {
+        // Both Package.swift and .xcodeproj exist → xcodebuild wins
+        let fs = InMemoryFileSystem(
+            files: ["/proj/Package.swift": ""],
+            directories: ["/proj/MyApp.xcodeproj"]
+        )
+        let scanner = ProjectScanner(fs: fs)
+
+        let result = try scanner.scan(root: "/proj")
+
+        XCTAssertEqual(result.projectType, .xcodebuild)
+        XCTAssertEqual(result.binaryTarget, "MyApp")
+    }
+
+    func test_xcodebuildFallsBackToDirectoryBasenameWhenNoXcodeproj() throws {
+        // project.yml exists but no .xcodeproj → fallback to dir name
+        let fs = InMemoryFileSystem(files: [
+            "/proj/MyApp/project.yml": "name: MyApp",
+        ])
+        let scanner = ProjectScanner(fs: fs)
+
+        let result = try scanner.scan(root: "/proj/MyApp")
+
+        XCTAssertEqual(result.projectType, .xcodebuild)
+        XCTAssertEqual(result.binaryTarget, "MyApp")
+    }
+
+    // MARK: - fallback
 
     func test_fallsBackToRootBasenameWhenSourcesDirectoryIsMissing() throws {
         let fs = InMemoryFileSystem(files: [

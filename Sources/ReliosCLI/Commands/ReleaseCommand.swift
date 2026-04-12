@@ -92,21 +92,34 @@ public struct ReleaseCommand: ParsableCommand {
         let nextLabel = "\(s.nextVersion.formatted) (build \(s.nextBuild.formatted))"
 
         print("✓ Preflight passed")
-        print("✓ Read current version: \(prevLabel)")
-        print("✓ Computed next version: \(nextLabel)")
-        print("✓ Built: \(s.buildCommand)")
-        print("✓ Verified artifact: \(s.binaryPath)")
+        print("✓ Version: \(prevLabel) → \(nextLabel)")
+        print("✓ Build completed")
+
+        if s.passthrough {
+            print("✓ Verified .app exists")
+        } else {
+            print("✓ Verified build artifact")
+        }
 
         if s.dryRun {
             print("")
-            print("Dry run — no files were written, no app was installed.")
+            print("Dry run — no files were written.")
         } else {
             print("✓ Updated version source")
-            print("✓ Assembled app bundle")
-            print("✓ Generated Info.plist")
-            print("✓ Signed (ad-hoc)")
-            if let backup = s.backupPath {
-                print("✓ Backed up existing app: \(backup)")
+
+            if !s.passthrough {
+                print("✓ Assembled .app bundle")
+                print("✓ Generated Info.plist")
+            }
+
+            switch s.signingMode {
+            case "adhoc":  print("✓ Signed (ad-hoc)")
+            case "keep":   break  // silence — nothing to report
+            default:       print("✓ Signed (\(s.signingMode))")
+            }
+
+            if s.backupPath != nil {
+                print("✓ Backed up previous app")
             }
             if let installAt = s.installedAt {
                 print("✓ Installed to \(installAt)")
@@ -116,16 +129,16 @@ public struct ReleaseCommand: ParsableCommand {
             }
         }
 
+        // Summary block — always shown
         print("")
-        print("Version: \(prevLabel) → \(nextLabel)")
         if let bp = s.bundlePath {
-            print("Bundle:  \(bp)")
+            print("  Bundle:  \(bp)")
         }
         if let ip = s.installedAt {
-            print("Install: \(ip)")
+            print("  Install: \(ip)")
         }
         if let backup = s.backupPath {
-            print("Backup:  \(backup)")
+            print("  Backup:  \(backup)")
         }
     }
 

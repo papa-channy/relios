@@ -12,7 +12,7 @@ final class SpecValidityRuleTests: XCTestCase {
         let result = SpecValidityRule().evaluate(context)
 
         if case .ok(let title) = result {
-            XCTAssertEqual(title, "spec is valid")
+            XCTAssertEqual(title, "spec valid")
         } else {
             XCTFail("expected .ok, got \(result)")
         }

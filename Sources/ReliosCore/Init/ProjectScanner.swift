@@ -3,14 +3,13 @@ import ReliosSupport
 
 /// Scans a project directory and reports just enough to seed a `SpecSkeleton`.
 ///
-/// v1 is intentionally a "80% heuristic" — it does NOT parse Package.swift,
-/// does NOT walk multi-target manifests, and does NOT read Swift source. It
-/// looks for `Package.swift` and the SwiftPM-default `Sources/<Name>/<Name>.swift`
-/// pattern, and falls back to the directory basename if either is missing.
+/// Detects two project types:
+/// - **SwiftPM**: `Package.swift` present, no Xcode markers → `.swiftpm`
+/// - **Xcode**: `.xcodeproj`, `.xcworkspace`, or `project.yml` present → `.xcodebuild`
 ///
 /// **Init must never crash.** Every "could not detect" branch falls back
-/// rather than throwing; the only thrown error is `notSwiftPMProject`,
-/// which is a pre-condition (no Package.swift means relios isn't applicable).
+/// rather than throwing; the only thrown error is `notRecognizedProject`,
+/// which means neither Package.swift nor any Xcode marker was found.
 public struct ProjectScanner: Sendable {
     private let fs: any FileSystem
 
@@ -19,20 +18,49 @@ public struct ProjectScanner: Sendable {
     }
 
     public func scan(root: String) throws -> ProjectScanResult {
-        guard fs.fileExists(at: root + "/Package.swift") else {
-            throw InitError.notSwiftPMProject(root: root)
+        let xcodeMarkers = XcodeProjectGuardRule.detectXcodeMarkers(root: root, fs: fs)
+        let hasPackageSwift = fs.fileExists(at: root + "/Package.swift")
+
+        // Xcode project detected → xcodebuild type
+        if !xcodeMarkers.isEmpty {
+            let target = detectSchemeName(root: root, markers: xcodeMarkers)
+            return ProjectScanResult(
+                root: root,
+                projectType: .xcodebuild,
+                binaryTarget: target
+            )
         }
 
-        let target = detectBinaryTarget(root: root)
+        // Pure SwiftPM
+        if hasPackageSwift {
+            let target = detectBinaryTarget(root: root)
+            return ProjectScanResult(
+                root: root,
+                projectType: .swiftpm,
+                binaryTarget: target
+            )
+        }
 
-        return ProjectScanResult(
-            root: root,
-            projectType: .swiftpm,
-            binaryTarget: target
-        )
+        // Neither
+        throw InitError.notSwiftPMProject(root: root)
     }
 
     // MARK: - private
+
+    /// For Xcode projects, attempts to derive the scheme/target name from
+    /// the .xcodeproj filename (e.g. `MyApp.xcodeproj` → `MyApp`).
+    /// Falls back to the project root directory basename.
+    private func detectSchemeName(root: String, markers: [String]) -> String {
+        let fallback = URL(fileURLWithPath: root).lastPathComponent
+        // Try .xcodeproj name first — most reliable heuristic
+        for marker in markers {
+            if marker.hasSuffix(".xcodeproj") {
+                let name = (marker as NSString).deletingPathExtension
+                if !name.isEmpty { return name }
+            }
+        }
+        return fallback
+    }
 
     /// Looks for `Sources/<Name>/<Name>.swift`. Returns the first match by
     /// alphabetical order so behavior is deterministic across runs.

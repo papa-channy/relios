@@ -34,6 +34,6 @@ public struct SpecValidityRule: ValidationRule {
             )
         }
 
-        return .ok(title: "spec is valid")
+        return .ok(title: "spec valid")
     }
 }

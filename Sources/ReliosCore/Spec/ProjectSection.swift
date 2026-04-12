@@ -1,6 +1,7 @@
 public struct ProjectSection: Decodable, Equatable, Sendable {
     public enum Kind: String, Decodable, Equatable, Sendable {
         case swiftpm
+        case xcodebuild
     }
 
     public let type: Kind

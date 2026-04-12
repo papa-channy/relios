@@ -16,7 +16,7 @@ final class DoctorRunnerTests: XCTestCase {
 
         XCTAssertEqual(diagnostics.count, 1)
         XCTAssertEqual(diagnostics[0].status, .ok)
-        XCTAssertEqual(diagnostics[0].title,  "spec is valid")
+        XCTAssertEqual(diagnostics[0].title,  "spec valid")
         XCTAssertNil(diagnostics[0].reason)
         XCTAssertNil(diagnostics[0].fix)
     }

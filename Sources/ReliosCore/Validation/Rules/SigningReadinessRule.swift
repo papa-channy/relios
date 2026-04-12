@@ -1,12 +1,17 @@
 import ReliosSupport
 
 /// Checks that `codesign` is available on the system.
+/// Skipped when `signing.mode = "keep"` — no codesign invocation needed.
 public struct SigningReadinessRule: ValidationRule {
     public init() {}
 
     public func evaluate(_ context: ValidationContext) -> RuleResult {
+        if context.spec.signing.mode == .keep {
+            return .ok(title: "signing skipped (keep mode)")
+        }
+
         guard let process = context.process else {
-            return .ok(title: "signing readiness (skipped — no process runner)")
+            return .ok(title: "signing check skipped")
         }
         let result: ProcessResult
         do {
@@ -25,6 +30,6 @@ public struct SigningReadinessRule: ValidationRule {
                 fix: "Install Xcode Command Line Tools: `xcode-select --install`"
             )
         }
-        return .ok(title: "codesign available")
+        return .ok(title: "signing tool available (codesign)")
     }
 }

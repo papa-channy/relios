@@ -14,7 +14,7 @@ final class ReadinessRuleTests: XCTestCase {
         let result = BuildReadinessRule().evaluate(context)
 
         if case .ok(let title) = result {
-            XCTAssertEqual(title, "build command available")
+            XCTAssertEqual(title, "build tool available (swift)")
         } else {
             XCTFail("expected .ok, got \(result)")
         }
@@ -49,7 +49,7 @@ final class ReadinessRuleTests: XCTestCase {
         let result = InstallPathRule().evaluate(context)
 
         if case .ok(let title) = result {
-            XCTAssertEqual(title, "install path is writable")
+            XCTAssertEqual(title, "install path writable")
         } else {
             XCTFail("expected .ok, got \(result)")
         }
@@ -81,7 +81,7 @@ final class ReadinessRuleTests: XCTestCase {
         let result = SigningReadinessRule().evaluate(context)
 
         if case .ok(let title) = result {
-            XCTAssertEqual(title, "codesign available")
+            XCTAssertEqual(title, "signing tool available (codesign)")
         } else {
             XCTFail("expected .ok, got \(result)")
         }

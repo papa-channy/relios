@@ -47,6 +47,7 @@ public struct InspectCommand: ParsableCommand {
         if let bp = manifest.backupPath {
             print("  Backup:    \(bp)")
         }
+        print("  Mode:      \(manifest.bundleMode)")
         print("  Signing:   \(manifest.signingMode)")
         print("  Launched:  \(manifest.launchedAfterInstall ? "yes" : "no")")
         print("  Timestamp: \(manifest.timestamp)")

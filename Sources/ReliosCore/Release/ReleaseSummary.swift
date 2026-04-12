@@ -12,6 +12,10 @@ public struct ReleaseSummary: Sendable, Equatable {
     public let buildCommand: String
     public let binaryPath: String
     public let dryRun: Bool
+    /// `true` when `[bundle].mode = "passthrough"` — assembly and plist were skipped.
+    public let passthrough: Bool
+    /// `"adhoc"`, `"keep"`, etc. — what signing mode was used.
+    public let signingMode: String
     /// Path to the assembled .app bundle. `nil` in dry-run.
     public let bundlePath: String?
     public let installedAt: String?
@@ -27,6 +31,8 @@ public struct ReleaseSummary: Sendable, Equatable {
         buildCommand: String,
         binaryPath: String,
         dryRun: Bool,
+        passthrough: Bool = false,
+        signingMode: String = "adhoc",
         bundlePath: String? = nil,
         installedAt: String? = nil,
         backupPath: String? = nil,
@@ -40,6 +46,8 @@ public struct ReleaseSummary: Sendable, Equatable {
         self.buildCommand = buildCommand
         self.binaryPath = binaryPath
         self.dryRun = dryRun
+        self.passthrough = passthrough
+        self.signingMode = signingMode
         self.bundlePath = bundlePath
         self.installedAt = installedAt
         self.backupPath = backupPath
