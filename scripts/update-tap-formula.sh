@@ -36,6 +36,9 @@ transform_formula() {
   local sha="$2"
   local src_repo="$3"
   local new_url="https://github.com/${src_repo}/archive/refs/tags/${tag}.tar.gz"
+  # The url regex is anchored to GitHub's source-tarball path. If the Formula
+  # ever switches to a release asset, a tarball mirror, or adds a bottle block
+  # with its own `url`, update this regex (and expand the bats tests).
   sed -E "s|^([[:space:]]*url \")[^\"]*archive/refs/tags/[^\"]*(\".*)\$|\\1${new_url}\\2|" \
     | awk -v sha="$sha" '
         BEGIN { done = 0 }
