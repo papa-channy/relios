@@ -4,7 +4,9 @@ public struct ReliosCommand: ParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "relios",
         abstract: "Local release pipeline for SwiftPM-based macOS apps.",
-        version: "0.1.0-alpha",
+        // Sentinel for source builds. Release artifacts (Homebrew, etc.)
+        // replace this at install time with the actual tag.
+        version: "0.0.0-dev",
         subcommands: [
             InitCommand.self,
             DoctorCommand.self,
