@@ -57,8 +57,19 @@ jobs:
       - name: Create and push tag
         env:
           NEXT: ${{ steps.ver.outputs.next }}
+          INPUT: ${{ inputs.bump }}
+          LATEST: ${{ steps.ver.outputs.latest }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$NEXT" -m "$NEXT"
+          git tag -a "$NEXT" -m "$NEXT (bump=$INPUT from $LATEST)"
           git push origin "$NEXT"
+
+      - name: Trigger release workflow
+        # Tag pushes made with GITHUB_TOKEN do NOT fire tag-trigger workflows
+        # (GitHub's loop-prevention safeguard). Dispatch release.yml explicitly
+        # so the tag actually ships.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXT: ${{ steps.ver.outputs.next }}
+        run: gh workflow run release.yml -f tag="$NEXT"

@@ -20,6 +20,11 @@ set -euo pipefail
 
 log() { printf '[tap-update] %s\n' "$*" >&2; }
 
+# Clean up a temp response file created in main(). Defaults to empty so
+# `set -u` does not trip when main() exits before the file is allocated.
+resp_file=""
+trap 'if [ -n "${resp_file:-}" ]; then rm -f "$resp_file"; fi' EXIT
+
 # transform_formula stdin → stdout
 # Rewrites the `url` line anchored on `archive/refs/tags/` and the first
 # `sha256 "..."` line. Does not touch other occurrences (e.g. bottle blocks).
@@ -92,7 +97,7 @@ main() {
     exit 0
   fi
 
-  local new_b64 payload resp_file http_code commit_sha
+  local new_b64 payload http_code commit_sha
   new_b64=$(printf '%s' "$new_content" | base64 | tr -d '\n')
 
   payload=$(jq -n \
@@ -103,8 +108,9 @@ main() {
     '{message:$msg, content:$content, sha:$sha, branch:$branch}')
 
   log "PUT ${api}"
+  # resp_file is intentionally global so the EXIT trap (set at script scope)
+  # can still resolve it under `set -u` after main() returns.
   resp_file=$(mktemp)
-  trap 'rm -f "$resp_file"' EXIT
   http_code=$(curl -sS --max-time 30 -o "$resp_file" -w '%{http_code}' \
     -X PUT \
     -H "Authorization: Bearer $TAP_TOKEN" \
