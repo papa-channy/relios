@@ -12,11 +12,14 @@ public struct BuildReadinessRule: ValidationRule {
         }
 
         let tool: String
+        let fixHint: String
         switch context.spec.project.type {
         case .swiftpm:
             tool = "swift"
+            fixHint = "Install Xcode Command Line Tools: `xcode-select --install`"
         case .xcodebuild:
             tool = "xcodebuild"
+            fixHint = "Install Xcode from the Mac App Store, then run `sudo xcode-select --switch /Applications/Xcode.app`. Command Line Tools alone do not include xcodebuild."
         }
 
         let result: ProcessResult
@@ -26,14 +29,14 @@ public struct BuildReadinessRule: ValidationRule {
             return .fail(
                 title: "\(tool) not available",
                 reason: "Could not check for \(tool): \(error)",
-                fix: "Install Xcode Command Line Tools: `xcode-select --install`"
+                fix: fixHint
             )
         }
         guard result.exitCode == 0 else {
             return .fail(
                 title: "\(tool) not found",
                 reason: "`\(tool)` is not in PATH",
-                fix: "Install Xcode Command Line Tools: `xcode-select --install`"
+                fix: fixHint
             )
         }
         return .ok(title: "build tool available (\(tool))")

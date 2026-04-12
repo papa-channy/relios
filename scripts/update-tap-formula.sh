@@ -13,99 +13,118 @@
 #   FORMULA_PATH default: Formula/relios.rb
 #
 # Exits 0 on success or no-op; non-zero on any error.
+#
+# Sourcing this script (e.g. from tests) defines functions without running main.
 
 set -euo pipefail
 
-: "${TAG:?TAG env required}"
-: "${SHA256:?SHA256 env required}"
-: "${TAP_TOKEN:?TAP_TOKEN env required}"
-
-TAP_REPO="${TAP_REPO:-papa-channy/homebrew-relios}"
-SRC_REPO="${SRC_REPO:-papa-channy/relios}"
-FORMULA_PATH="${FORMULA_PATH:-Formula/relios.rb}"
-API="https://api.github.com/repos/${TAP_REPO}/contents/${FORMULA_PATH}"
-NEW_URL="https://github.com/${SRC_REPO}/archive/refs/tags/${TAG}.tar.gz"
-
 log() { printf '[tap-update] %s\n' "$*" >&2; }
 
-log "TAG=$TAG"
-log "SHA256=$SHA256"
-log "NEW_URL=$NEW_URL"
-
-# Fetch current formula.
-RESP=$(curl --fail-with-body -sSL --max-time 30 \
-  -H "Authorization: Bearer $TAP_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  -H "X-GitHub-Api-Version: 2022-11-28" \
-  "$API")
-
-CUR_SHA=$(printf '%s' "$RESP" | jq -r .sha)
-CUR_CONTENT=$(printf '%s' "$RESP" | jq -r .content | base64 -d)
-
-# Replace url line (anchored on archive/refs/tags/) and first sha256 line.
-NEW_CONTENT=$(printf '%s' "$CUR_CONTENT" \
-  | sed -E "s|^([[:space:]]*url \")[^\"]*archive/refs/tags/[^\"]*(\".*)\$|\\1${NEW_URL}\\2|" \
-  | awk -v sha="$SHA256" '
-      BEGIN { done = 0 }
-      {
-        if (!done && $0 ~ /^[[:space:]]*sha256 "[0-9a-f]+"/) {
-          sub(/sha256 "[0-9a-f]+"/, "sha256 \"" sha "\"")
-          done = 1
+# transform_formula stdin → stdout
+# Rewrites the `url` line anchored on `archive/refs/tags/` and the first
+# `sha256 "..."` line. Does not touch other occurrences (e.g. bottle blocks).
+# Inputs: $1=tag  $2=sha256  $3=src_repo (owner/name)
+# NOTE: tag and sha256 are embedded into sed/awk patterns — callers must only
+# pass values that have already been validated as safe (semver-ish tag, hex sha).
+transform_formula() {
+  local tag="$1"
+  local sha="$2"
+  local src_repo="$3"
+  local new_url="https://github.com/${src_repo}/archive/refs/tags/${tag}.tar.gz"
+  sed -E "s|^([[:space:]]*url \")[^\"]*archive/refs/tags/[^\"]*(\".*)\$|\\1${new_url}\\2|" \
+    | awk -v sha="$sha" '
+        BEGIN { done = 0 }
+        {
+          if (!done && $0 ~ /^[[:space:]]*sha256 "[0-9a-fA-F]{64}"/) {
+            sub(/sha256 "[0-9a-fA-F]+"/, "sha256 \"" sha "\"")
+            done = 1
+          }
+          print
         }
-        print
-      }
-    ')
+      '
+}
 
-if [ "$NEW_CONTENT" = "$CUR_CONTENT" ]; then
-  log "Formula already at $TAG with sha $SHA256 — no-op"
-  exit 0
+main() {
+  : "${TAG:?TAG env required}"
+  : "${SHA256:?SHA256 env required}"
+  : "${TAP_TOKEN:?TAP_TOKEN env required}"
+
+  local tap_repo="${TAP_REPO:-papa-channy/homebrew-relios}"
+  local src_repo="${SRC_REPO:-papa-channy/relios}"
+  local formula_path="${FORMULA_PATH:-Formula/relios.rb}"
+  local api="https://api.github.com/repos/${tap_repo}/contents/${formula_path}"
+  local new_url="https://github.com/${src_repo}/archive/refs/tags/${TAG}.tar.gz"
+
+  log "TAG=$TAG"
+  log "SHA256=$SHA256"
+  log "NEW_URL=$new_url"
+
+  local resp cur_sha cur_content new_content
+  resp=$(curl --fail-with-body -sSL --max-time 30 \
+    -H "Authorization: Bearer $TAP_TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "$api")
+
+  cur_sha=$(printf '%s' "$resp" | jq -r .sha)
+  cur_content=$(printf '%s' "$resp" | jq -r .content | base64 -d)
+
+  new_content=$(printf '%s' "$cur_content" | transform_formula "$TAG" "$SHA256" "$src_repo")
+
+  if [ "$new_content" = "$cur_content" ]; then
+    log "Formula already at $TAG with sha $SHA256 — no-op"
+    exit 0
+  fi
+
+  if ! printf '%s' "$new_content" | grep -qF "$new_url"; then
+    log "ERROR: sed did not produce expected url line"
+    exit 1
+  fi
+  if ! printf '%s' "$new_content" | grep -qF "$SHA256"; then
+    log "ERROR: sha256 substitution failed"
+    exit 1
+  fi
+
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    log "DRY_RUN=1 — printing diff and exiting"
+    diff <(printf '%s' "$cur_content") <(printf '%s' "$new_content") || true
+    log "Would commit: chore: bump relios to ${TAG}"
+    exit 0
+  fi
+
+  local new_b64 payload resp_file http_code commit_sha
+  new_b64=$(printf '%s' "$new_content" | base64 | tr -d '\n')
+
+  payload=$(jq -n \
+    --arg msg "chore: bump relios to ${TAG}" \
+    --arg content "$new_b64" \
+    --arg sha "$cur_sha" \
+    --arg branch "main" \
+    '{message:$msg, content:$content, sha:$sha, branch:$branch}')
+
+  log "PUT ${api}"
+  resp_file=$(mktemp)
+  trap 'rm -f "$resp_file"' EXIT
+  http_code=$(curl -sS --max-time 30 -o "$resp_file" -w '%{http_code}' \
+    -X PUT \
+    -H "Authorization: Bearer $TAP_TOKEN" \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    -H "Content-Type: application/json" \
+    --data "$payload" \
+    "$api")
+
+  if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
+    log "ERROR: PUT returned $http_code"
+    cat "$resp_file" >&2
+    exit 1
+  fi
+
+  commit_sha=$(jq -r .commit.sha "$resp_file")
+  log "OK — tap commit ${commit_sha}"
+}
+
+# Only run main when executed directly (not when sourced by tests).
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
 fi
-
-# Sanity: the new content must contain both the new URL and the new sha256.
-if ! printf '%s' "$NEW_CONTENT" | grep -qF "$NEW_URL"; then
-  log "ERROR: sed did not produce expected url line"
-  exit 1
-fi
-if ! printf '%s' "$NEW_CONTENT" | grep -qF "$SHA256"; then
-  log "ERROR: sha256 substitution failed"
-  exit 1
-fi
-
-if [ "${DRY_RUN:-0}" = "1" ]; then
-  log "DRY_RUN=1 — printing diff and exiting"
-  diff <(printf '%s' "$CUR_CONTENT") <(printf '%s' "$NEW_CONTENT") || true
-  log "Would commit: chore: bump relios to ${TAG}"
-  exit 0
-fi
-
-# Base64 encode without line wrapping. macOS and GNU coreutils differ:
-# use tr to strip newlines for portability.
-NEW_B64=$(printf '%s' "$NEW_CONTENT" | base64 | tr -d '\n')
-
-PAYLOAD=$(jq -n \
-  --arg msg "chore: bump relios to ${TAG}" \
-  --arg content "$NEW_B64" \
-  --arg sha "$CUR_SHA" \
-  --arg branch "main" \
-  '{message:$msg, content:$content, sha:$sha, branch:$branch}')
-
-log "PUT ${API}"
-RESP_FILE=$(mktemp)
-trap 'rm -f "$RESP_FILE"' EXIT
-HTTP_CODE=$(curl -sS --max-time 30 -o "$RESP_FILE" -w '%{http_code}' \
-  -X PUT \
-  -H "Authorization: Bearer $TAP_TOKEN" \
-  -H "Accept: application/vnd.github+json" \
-  -H "X-GitHub-Api-Version: 2022-11-28" \
-  -H "Content-Type: application/json" \
-  --data "$PAYLOAD" \
-  "$API")
-
-if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
-  log "ERROR: PUT returned $HTTP_CODE"
-  cat "$RESP_FILE" >&2
-  exit 1
-fi
-
-COMMIT_SHA=$(jq -r .commit.sha "$RESP_FILE")
-log "OK — tap commit ${COMMIT_SHA}"

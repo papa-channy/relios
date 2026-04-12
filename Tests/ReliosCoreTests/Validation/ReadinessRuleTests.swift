@@ -28,7 +28,34 @@ final class ReadinessRuleTests: XCTestCase {
 
         if case .fail(let title, _, let fix) = result {
             XCTAssertEqual(title, "swift not found")
-            XCTAssertTrue(fix.contains("xcode-select"))
+            XCTAssertTrue(fix.contains("Command Line Tools"))
+        } else {
+            XCTFail("expected .fail, got \(result)")
+        }
+    }
+
+    func test_gate1_buildReadiness_failsWhenXcodebuildNotFound_suggestsFullXcode() throws {
+        // xcodebuild missing should NOT suggest CLT — CLT does not ship xcodebuild.
+        let fs = InMemoryFileSystem(files: [
+            "/proj/relios.toml": SampleTOMLs.xcodebuildPassthrough,
+        ], directories: ["/Applications"])
+        let spec = try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
+        let process = MockProcessRunner(result: .failure(exitCode: 1, stderr: ""))
+        let context = ValidationContext(
+            spec: spec,
+            projectRoot: "/proj",
+            fs: fs,
+            process: process
+        )
+
+        let result = BuildReadinessRule().evaluate(context)
+
+        if case .fail(let title, _, let fix) = result {
+            XCTAssertEqual(title, "xcodebuild not found")
+            XCTAssertTrue(fix.contains("Install Xcode"),
+                          "fix should point to full Xcode, got: \(fix)")
+            XCTAssertTrue(fix.contains("xcode-select --switch"),
+                          "fix should mention xcode-select --switch, got: \(fix)")
         } else {
             XCTFail("expected .fail, got \(result)")
         }
