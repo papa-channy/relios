@@ -85,17 +85,17 @@ public struct Notarizer: Sendable {
         // `--wait` blocks until Apple's queue resolves; notarytool handles
         // polling internally. We pass --timeout for the waitcommand's own
         // upper bound. Credentials go via env to keep them out of ps output.
+        // `--wait` can take up to `timeoutSeconds` — stream output so CI
+        // logs show Apple's progress (submission id, status polls, final
+        // verdict) instead of a silent hang.
         let cmd = """
-        APPLE_ID=\(shellQuote(credentials.appleID)) \
-        APPLE_APP_SPECIFIC_PASSWORD=\(shellQuote(credentials.password)) \
-        APPLE_TEAM_ID=\(shellQuote(credentials.teamID)) \
         xcrun notarytool submit \(shellQuote(artifactPath)) \
-        --apple-id "$APPLE_ID" \
-        --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-        --team-id "$APPLE_TEAM_ID" \
+        --apple-id \(shellQuote(credentials.appleID)) \
+        --password \(shellQuote(credentials.password)) \
+        --team-id \(shellQuote(credentials.teamID)) \
         --wait --timeout \(timeoutSeconds)s
         """
-        let result = try process.runShell(cmd, cwd: nil)
+        let result = try process.runShellStreaming(cmd, cwd: nil)
         if result.exitCode != 0 {
             let combined = [result.stdout, result.stderr]
                 .filter { !$0.isEmpty }
