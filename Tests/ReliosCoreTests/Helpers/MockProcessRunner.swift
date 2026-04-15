@@ -30,8 +30,17 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
         self.defaultResult = defaultResult
     }
 
+    /// Side effects keyed by command substring. When a call's command
+    /// contains the key, the closure runs before the result is returned.
+    /// Tests use this to simulate file-system changes (e.g. ditto -x -k
+    /// extracting an archive) that a real subprocess would produce.
+    var sideEffects: [String: () -> Void] = [:]
+
     func runShell(_ command: String, cwd: String?) throws -> ProcessResult {
         calls.append(Call(command: command, cwd: cwd))
+        for (pattern, effect) in sideEffects where command.contains(pattern) {
+            effect()
+        }
         for (pattern, result) in commandOverrides {
             if command.contains(pattern) { return result }
         }

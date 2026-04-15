@@ -54,8 +54,9 @@ public struct CICommand: ParsableCommand {
             print("  2. Push to trigger CI, or a tag to trigger a release:")
             print("       git tag v0.1.0 && git push origin v0.1.0")
             print("")
-            print("Scope: build + test + zip (+ optional DMG) + upload. No Developer ID")
-            print("signing or notarization yet — those arrive in a later phase.")
+            print("Workflow steps are generated from relios.toml — enabling `[dmg]`,")
+            print("`[notarize]`, or `[signing].mode = developer-id` injects the")
+            print("matching steps. Re-run with `--force` after changing relios.toml.")
         }
 
         private func printFailure(_ error: CIError) {

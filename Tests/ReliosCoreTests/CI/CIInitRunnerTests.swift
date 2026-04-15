@@ -183,6 +183,37 @@ final class CIInitRunnerTests: XCTestCase {
         XCTAssertFalse(yaml.contains("swift test"))
     }
 
+    // MARK: - Notarization integration
+
+    private func passthroughTOMLWithDevIDAndNotarize() -> String {
+        let base = passthroughTOMLWithDevID()
+        return base + "\n\n[notarize]\nenabled = true\n"
+    }
+
+    func test_releaseWorkflow_omitsNotarizeStepWhenDisabled() throws {
+        let fs = InMemoryFileSystem(files: ["/proj/relios.toml": passthroughTOMLWithDevID()])
+        _ = try CIInitRunner(fs: fs).run(projectRoot: "/proj", force: false)
+        let yaml = try fs.readUTF8(at: "/proj/.github/workflows/release.yml")
+        XCTAssertFalse(yaml.contains("relios notarize"))
+        XCTAssertFalse(yaml.contains("APPLE_APP_SPECIFIC_PASSWORD"))
+    }
+
+    func test_releaseWorkflow_injectsNotarizeStepWhenEnabled() throws {
+        let fs = InMemoryFileSystem(files: ["/proj/relios.toml": passthroughTOMLWithDevIDAndNotarize()])
+        _ = try CIInitRunner(fs: fs).run(projectRoot: "/proj", force: false)
+        let yaml = try fs.readUTF8(at: "/proj/.github/workflows/release.yml")
+
+        XCTAssertTrue(yaml.contains("Notarize + staple"))
+        XCTAssertTrue(yaml.contains("relios notarize"))
+        XCTAssertTrue(yaml.contains("${{ secrets.APPLE_ID }}"))
+        XCTAssertTrue(yaml.contains("${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"))
+        XCTAssertTrue(yaml.contains("${{ secrets.APPLE_TEAM_ID }}"))
+        // Header secrets-note lists all three.
+        XCTAssertTrue(yaml.contains("APPLE_ID                    — Apple Developer"))
+        XCTAssertTrue(yaml.contains("APPLE_APP_SPECIFIC_PASSWORD"))
+        XCTAssertTrue(yaml.contains("APPLE_TEAM_ID               — 10-char Team ID"))
+    }
+
     // MARK: - Developer ID signing integration
 
     private func devIDSigningBlock() -> String {

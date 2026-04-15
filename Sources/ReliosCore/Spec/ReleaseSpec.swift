@@ -13,4 +13,6 @@ public struct ReleaseSpec: Decodable, Equatable, Sendable {
     public let signing: SigningSection
     /// Optional: absent or `enabled = false` means no DMG is produced.
     public let dmg: DMGSection?
+    /// Optional: absent or `enabled = false` skips notarization.
+    public let notarize: NotarizeSection?
 }
