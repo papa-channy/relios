@@ -11,4 +11,6 @@ public struct ReleaseSpec: Decodable, Equatable, Sendable {
     public let bundle: BundleSection
     public let install: InstallSection
     public let signing: SigningSection
+    /// Optional: absent or `enabled = false` means no DMG is produced.
+    public let dmg: DMGSection?
 }

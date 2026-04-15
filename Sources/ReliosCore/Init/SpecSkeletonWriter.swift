@@ -89,6 +89,10 @@ public struct SpecSkeletonWriter: Sendable {
 
         [signing]
         mode = "\(s.signingMode.rawValue)"
+        identity = "\(s.signingIdentity ?? "")"
+        team_id = "\(s.signingTeamID ?? "")"
+        hardened_runtime = true
+        entitlements_path = ""
         """
     }
 }

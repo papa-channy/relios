@@ -80,6 +80,8 @@ public struct ProjectScanner: Sendable {
             return fallback
         }
 
+        // First pass: prefer a target directory that has <Name>.swift
+        // (tightest match — rules out test dirs, resource-only dirs, etc.).
         for name in candidates {
             let dir = sourcesPath + "/" + name
             guard fs.isDirectory(at: dir) else { continue }
@@ -88,6 +90,21 @@ public struct ProjectScanner: Sendable {
             if fs.fileExists(at: mainFile) {
                 return name
             }
+        }
+
+        // Second pass: if Sources/ has exactly one subdirectory with any
+        // .swift file, use its name. Catches projects like WorkspaceLauncher
+        // where the entry point is `App.swift` (SwiftUI `@main`) rather
+        // than `WorkspaceLauncher.swift`. Multi-target projects fall
+        // through to the root-basename fallback to stay deterministic.
+        let targetDirs = candidates.filter { name in
+            let dir = sourcesPath + "/" + name
+            guard fs.isDirectory(at: dir) else { return false }
+            let entries = (try? fs.listDirectory(at: dir)) ?? []
+            return entries.contains(where: { $0.hasSuffix(".swift") })
+        }
+        if targetDirs.count == 1 {
+            return targetDirs[0]
         }
 
         return fallback

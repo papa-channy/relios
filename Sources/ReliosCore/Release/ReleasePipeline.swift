@@ -98,10 +98,14 @@ public struct ReleasePipeline: Sendable {
             )
         }
 
-        if spec.signing.mode == .adhoc {
+        switch spec.signing.mode {
+        case .adhoc:
             try signAdhoc(appPath: outputPath)
+        case .developerID:
+            try signDeveloperID(spec: spec, appPath: outputPath)
+        case .keep:
+            break
         }
-        // .keep → skip signing, preserve existing signature
 
         // Steps 10-13: install phase
         let installPath = options.installPath ?? spec.install.path
@@ -329,15 +333,45 @@ public struct ReleasePipeline: Sendable {
         do {
             try signer.sign(appPath: appPath)
         } catch let error as SigningError {
+            throw Self.mapSigningError(error)
+        }
+    }
+
+    private func signDeveloperID(spec: ReleaseSpec, appPath: String) throws {
+        // Validation ran first (SigningReadinessRule) so required fields
+        // are guaranteed present; if they aren't, surface a typed error
+        // instead of crashing on a force-unwrap.
+        guard let identity = spec.signing.identity else {
             throw ReleaseError.signingFailed(
-                reason: error.shortReason,
-                fix: error.shortFix,
-                stderrTail: {
-                    if case .nonZeroExit(_, let tail) = error { return tail }
-                    return nil
-                }()
+                reason: SigningError.missingDeveloperIDConfig(field: "identity").shortReason,
+                fix: SigningError.missingDeveloperIDConfig(field: "identity").shortFix,
+                stderrTail: nil
             )
         }
+
+        let signer = DeveloperIDSigner(process: process)
+        do {
+            try signer.sign(
+                appPath: appPath,
+                identity: identity,
+                hardenedRuntime: spec.signing.hardenedRuntime,
+                entitlementsPath: spec.signing.entitlementsPath
+            )
+        } catch let error as SigningError {
+            throw Self.mapSigningError(error)
+        }
+    }
+
+    private static func mapSigningError(_ error: SigningError) -> ReleaseError {
+        let tail: String? = {
+            if case .nonZeroExit(_, let t) = error { return t }
+            return nil
+        }()
+        return ReleaseError.signingFailed(
+            reason: error.shortReason,
+            fix: error.shortFix,
+            stderrTail: tail
+        )
     }
 
     // MARK: - install steps (10-13)

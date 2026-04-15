@@ -54,6 +54,7 @@ public struct DoctorCommand: ParsableCommand {
             BuildReadinessRule(),
             InstallPathRule(),
             SigningReadinessRule(),
+            DMGReadinessRule(),
         ])
 
         let diagnostics = runner.run(context)

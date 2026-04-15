@@ -89,6 +89,44 @@ final class SpecSkeletonWriterTests: XCTestCase {
         XCTAssertTrue(spec.bundle.outputPath.contains("MyApp.app"))
     }
 
+    // MARK: - Developer ID auto-population
+
+    func test_withDeveloperID_populatesIdentityAndTeamInRenderedTOML() throws {
+        let base = SpecSkeleton.from(scan: ProjectScanResult(
+            root: "/proj",
+            projectType: .swiftpm,
+            binaryTarget: "App"
+        ))
+        let skeleton = base.withDeveloperID(
+            identity: "Developer ID Application: Chan (ABCDE12345)",
+            teamID: "ABCDE12345"
+        )
+
+        let toml = SpecSkeletonWriter(fs: InMemoryFileSystem()).render(skeleton)
+        XCTAssertTrue(toml.contains("mode = \"developer-id\""))
+        XCTAssertTrue(toml.contains("identity = \"Developer ID Application: Chan (ABCDE12345)\""))
+        XCTAssertTrue(toml.contains("team_id = \"ABCDE12345\""))
+
+        // Roundtrip: the rendered TOML must still be loadable.
+        let fs = InMemoryFileSystem(files: ["/proj/relios.toml": toml])
+        let spec = try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
+        XCTAssertEqual(spec.signing.mode, .developerID)
+        XCTAssertEqual(spec.signing.identity, "Developer ID Application: Chan (ABCDE12345)")
+        XCTAssertEqual(spec.signing.teamID, "ABCDE12345")
+    }
+
+    func test_defaultSkeleton_leavesSigningIdentityEmpty() {
+        let base = SpecSkeleton.from(scan: ProjectScanResult(
+            root: "/proj",
+            projectType: .swiftpm,
+            binaryTarget: "App"
+        ))
+        let toml = SpecSkeletonWriter(fs: InMemoryFileSystem()).render(base)
+        XCTAssertTrue(toml.contains("mode = \"adhoc\""))
+        XCTAssertTrue(toml.contains("identity = \"\""))
+        XCTAssertTrue(toml.contains("team_id = \"\""))
+    }
+
     func test_xcodebuildSkeletonPassesSpecValidityRule() throws {
         let skeleton = SpecSkeleton.from(scan: ProjectScanResult(
             root: "/proj",

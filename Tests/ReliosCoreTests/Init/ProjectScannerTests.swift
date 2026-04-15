@@ -134,6 +134,22 @@ final class ProjectScannerTests: XCTestCase {
         XCTAssertEqual(result.binaryTarget, "MyApp")
     }
 
+    func test_usesOnlyTargetDirectoryWhenNamingConventionMismatches() throws {
+        // WorkspaceLauncher pattern: Sources/WorkspaceLauncher/App.swift
+        // (no WorkspaceLauncher.swift, SwiftUI `@main` on `App`). Single
+        // target with .swift files → use its name rather than root basename.
+        let fs = InMemoryFileSystem(files: [
+            "/proj/workspace-launcher/Package.swift": "// package manifest",
+            "/proj/workspace-launcher/Sources/WorkspaceLauncher/App.swift": "// @main",
+            "/proj/workspace-launcher/Sources/WorkspaceLauncher/Helper.swift": "//",
+        ])
+        let scanner = ProjectScanner(fs: fs)
+
+        let result = try scanner.scan(root: "/proj/workspace-launcher")
+
+        XCTAssertEqual(result.binaryTarget, "WorkspaceLauncher")
+    }
+
     func test_fallsBackToRootBasenameWhenNoFolderMatchesNamingConvention() throws {
         // Sources/ exists, has subfolders, but none contain `<Name>.swift`.
         let fs = InMemoryFileSystem(files: [

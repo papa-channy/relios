@@ -24,7 +24,18 @@ public struct InitCommand: ParsableCommand {
             throw ExitCode.failure
         }
 
-        let skeleton = SpecSkeleton.from(scan: scan)
+        var skeleton = SpecSkeleton.from(scan: scan)
+
+        // Auto-populate Developer ID signing when the keychain has exactly
+        // one "Developer ID Application" identity. Zero or multiple → leave
+        // mode=adhoc; the summary explains why. This is the one-shot flow:
+        // register the cert in Keychain Access (or `relios signing import`)
+        // once, then any future `relios init` picks it up automatically.
+        let keychainOutcome = detectDeveloperIDIdentity()
+        if case .single(let identity, let teamID) = keychainOutcome {
+            skeleton = skeleton.withDeveloperID(identity: identity, teamID: teamID)
+        }
+
         let writer = SpecSkeletonWriter(fs: fs)
 
         var createdFiles: [String] = []
@@ -51,12 +62,41 @@ public struct InitCommand: ParsableCommand {
             }
         }
 
-        printSummary(skeleton, createdFiles: createdFiles)
+        printSummary(skeleton, createdFiles: createdFiles, keychain: keychainOutcome)
+    }
+
+    // MARK: - keychain probe
+
+    private enum KeychainOutcome {
+        case single(identity: String, teamID: String)
+        case none
+        case multiple(count: Int)
+        case ambiguousNoTeam(identity: String)
+        case unavailable
+    }
+
+    private func detectDeveloperIDIdentity() -> KeychainOutcome {
+        let process = RealProcessRunner()
+        guard let identities = try? KeychainIdentityLister(process: process).list() else {
+            return .unavailable
+        }
+        let devIDs = identities.filter { $0.name.contains("Developer ID Application") }
+        switch devIDs.count {
+        case 0:
+            return .none
+        case 1:
+            guard let teamID = devIDs[0].teamID else {
+                return .ambiguousNoTeam(identity: devIDs[0].name)
+            }
+            return .single(identity: devIDs[0].name, teamID: teamID)
+        default:
+            return .multiple(count: devIDs.count)
+        }
     }
 
     // MARK: - output
 
-    private func printSummary(_ s: SpecSkeleton, createdFiles: [String]) {
+    private func printSummary(_ s: SpecSkeleton, createdFiles: [String], keychain: KeychainOutcome) {
         print("✓ Initialized Relios")
         print("")
         print("Created files:")
@@ -69,6 +109,21 @@ public struct InitCommand: ParsableCommand {
         print("  binary target: \(s.binaryTarget)")
         if s.bundleMode == .passthrough {
             print("  bundle mode:   passthrough (Xcode project)")
+        }
+        switch keychain {
+        case .single(let identity, let teamID):
+            print("  signing:       developer-id (\(teamID))")
+            print("                 \(identity)")
+        case .none:
+            print("  signing:       adhoc (no Developer ID cert in keychain)")
+        case .multiple(let count):
+            print("  signing:       adhoc (\(count) Developer ID certs found — ambiguous;")
+            print("                 run `relios signing setup` to pick one)")
+        case .ambiguousNoTeam(let identity):
+            print("  signing:       adhoc (cert found but Team ID unparseable)")
+            print("                 \(identity)")
+        case .unavailable:
+            print("  signing:       adhoc (could not query keychain)")
         }
         print("")
         print("Review before first release:")

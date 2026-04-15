@@ -16,6 +16,11 @@ public struct SpecSkeleton: Sendable, Equatable {
     public let installPath: String
     public let bundleMode: BundleSection.Mode
     public let signingMode: SigningSection.Mode
+    /// Pre-filled from the keychain when `relios init` detects exactly one
+    /// "Developer ID Application" identity. `nil` in every other case;
+    /// the user (or `relios signing setup`) fills these in later.
+    public let signingIdentity: String?
+    public let signingTeamID: String?
 
     public init(
         appName: String,
@@ -28,7 +33,9 @@ public struct SpecSkeleton: Sendable, Equatable {
         outputAppPath: String,
         installPath: String,
         bundleMode: BundleSection.Mode,
-        signingMode: SigningSection.Mode
+        signingMode: SigningSection.Mode,
+        signingIdentity: String? = nil,
+        signingTeamID: String? = nil
     ) {
         self.appName = appName
         self.bundleId = bundleId
@@ -41,6 +48,29 @@ public struct SpecSkeleton: Sendable, Equatable {
         self.installPath = installPath
         self.bundleMode = bundleMode
         self.signingMode = signingMode
+        self.signingIdentity = signingIdentity
+        self.signingTeamID = signingTeamID
+    }
+
+    /// Returns a copy with Developer ID signing fields populated. Used by
+    /// `InitCommand` when it detects a single Developer ID Application cert
+    /// in the keychain and wants to promote the skeleton from ad-hoc.
+    public func withDeveloperID(identity: String, teamID: String) -> SpecSkeleton {
+        SpecSkeleton(
+            appName: appName,
+            bundleId: bundleId,
+            binaryTarget: binaryTarget,
+            projectRoot: projectRoot,
+            projectType: projectType,
+            buildCommand: buildCommand,
+            binaryPath: binaryPath,
+            outputAppPath: outputAppPath,
+            installPath: installPath,
+            bundleMode: bundleMode,
+            signingMode: .developerID,
+            signingIdentity: identity,
+            signingTeamID: teamID
+        )
     }
 }
 

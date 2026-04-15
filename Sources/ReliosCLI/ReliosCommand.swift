@@ -16,6 +16,9 @@ public struct ReliosCommand: ParsableCommand {
             InspectCommand.self,
             RollbackCommand.self,
             OpenCommand.self,
+            CICommand.self,
+            SigningCommand.self,
+            DMGCommand.self,
         ]
     )
 
