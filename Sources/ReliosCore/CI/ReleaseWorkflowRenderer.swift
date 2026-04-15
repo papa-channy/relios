@@ -166,6 +166,8 @@ public struct ReleaseWorkflowRenderer: Sendable {
 
     private func dmgStepsBlock(spec: ReleaseSpec) -> String {
         guard let dmg = spec.dmg else { return "" }
+        // Resolve the single DMG path so downstream steps (notarize,
+        // publish) can pass it explicitly instead of shell-globbing.
         return """
 
 
@@ -173,7 +175,9 @@ public struct ReleaseWorkflowRenderer: Sendable {
                 run: relios dmg
 
               - name: Record DMG path
-                run: echo "DMG_GLOB=\(dmg.outputDir)/*.dmg" >> "$GITHUB_ENV"
+                run: |
+                  DMG_FILE=$(ls \(dmg.outputDir)/*.dmg | head -1)
+                  echo "DMG_FILE=$DMG_FILE" >> "$GITHUB_ENV"
         """
     }
 
@@ -184,7 +188,7 @@ public struct ReleaseWorkflowRenderer: Sendable {
             ? """
                   files: |
                     ${{ env.ZIP }}
-                    ${{ env.DMG_GLOB }}
+                    ${{ env.DMG_FILE }}
         """
             : """
                   files: ${{ env.ZIP }}
@@ -248,6 +252,10 @@ public struct ReleaseWorkflowRenderer: Sendable {
     /// publish step's `${{ env.ZIP }}` still resolves (`relios notarize`
     /// rewrites the zip in place with the stapled `.app` inside).
     private func notarizeStepsBlock(spec: ReleaseSpec, dmgEnabled: Bool) -> String {
+        // Pass the artifact explicitly so the resolver doesn't guess the
+        // filename from AppVersion.swift — the actual filename is built
+        // from the git tag, which can diverge from the source version.
+        let artifact = dmgEnabled ? "$DMG_FILE" : "$ZIP"
         return """
 
 
@@ -256,7 +264,7 @@ public struct ReleaseWorkflowRenderer: Sendable {
                   APPLE_ID: ${{ secrets.APPLE_ID }}
                   APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
                   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-                run: relios notarize
+                run: relios notarize "\(artifact)"
         """
     }
 

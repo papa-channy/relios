@@ -204,7 +204,9 @@ final class CIInitRunnerTests: XCTestCase {
         let yaml = try fs.readUTF8(at: "/proj/.github/workflows/release.yml")
 
         XCTAssertTrue(yaml.contains("Notarize + staple"))
-        XCTAssertTrue(yaml.contains("relios notarize"))
+        // Artifact is passed explicitly to avoid filename drift between
+        // AppVersion.swift and the git tag used for the zip filename.
+        XCTAssertTrue(yaml.contains("relios notarize \"$ZIP\""))
         XCTAssertTrue(yaml.contains("${{ secrets.APPLE_ID }}"))
         XCTAssertTrue(yaml.contains("${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"))
         XCTAssertTrue(yaml.contains("${{ secrets.APPLE_TEAM_ID }}"))
@@ -289,8 +291,8 @@ final class CIInitRunnerTests: XCTestCase {
         let yaml = try fs.readUTF8(at: "/proj/.github/workflows/release.yml")
         XCTAssertTrue(yaml.contains("pip install --break-system-packages dmgbuild"))
         XCTAssertTrue(yaml.contains("relios dmg"))
-        XCTAssertTrue(yaml.contains("DMG_GLOB=dist/*.dmg"))
-        XCTAssertTrue(yaml.contains("${{ env.DMG_GLOB }}"))
+        XCTAssertTrue(yaml.contains("DMG_FILE=$(ls dist/*.dmg | head -1)"))
+        XCTAssertTrue(yaml.contains("${{ env.DMG_FILE }}"))
     }
 
     func test_releaseWorkflow_installsReliosForPassthroughWhenDMGEnabled() throws {
