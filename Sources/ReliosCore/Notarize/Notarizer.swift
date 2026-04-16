@@ -48,31 +48,19 @@ public struct Notarizer: Sendable {
             timeoutSeconds: timeoutSeconds
         )
 
-        let stapled: String
         if artifactPath.hasSuffix(".dmg") {
             try staple(path: artifactPath)
-            stapled = artifactPath
+            // DMGs hold their own stapling ticket — validate in place.
+            try validate(path: artifactPath)
+            return Output(stapledArtifactPath: artifactPath)
         } else if artifactPath.hasSuffix(".zip") {
-            stapled = try stapleAppInsideZip(zipPath: artifactPath)
+            // Zips can't hold a ticket; `stapleAppInsideZip` staples +
+            // validates the inner .app, then re-zips over the original.
+            try stapleAppInsideZip(zipPath: artifactPath)
+            return Output(stapledArtifactPath: artifactPath)
         } else {
             throw NotarizeError.unsupportedArtifact(path: artifactPath)
         }
-
-        // Final sanity: offline Gatekeeper uses the stapled ticket, so if
-        // validate fails here the UX regression is silent (online fallback
-        // still works). Catch it loud.
-        let validation = try process.runShell(
-            "xcrun stapler validate \(shellQuote(stapled))",
-            cwd: nil
-        )
-        guard validation.exitCode == 0 else {
-            throw NotarizeError.stapleFailed(
-                exitCode: validation.exitCode,
-                stderr: validation.stderr
-            )
-        }
-
-        return Output(stapledArtifactPath: stapled)
     }
 
     // MARK: - submit
@@ -143,9 +131,22 @@ public struct Notarizer: Sendable {
         }
     }
 
+    private func validate(path: String) throws {
+        let result = try process.runShell(
+            "xcrun stapler validate \(shellQuote(path))",
+            cwd: nil
+        )
+        guard result.exitCode == 0 else {
+            throw NotarizeError.stapleFailed(
+                exitCode: result.exitCode,
+                stderr: result.stderr
+            )
+        }
+    }
+
     /// Unzips the artifact into a scratch dir, staples the first `.app`
-    /// bundle found, re-zips it over the original path.
-    private func stapleAppInsideZip(zipPath: String) throws -> String {
+    /// bundle found, validates it, then re-zips over the original path.
+    private func stapleAppInsideZip(zipPath: String) throws {
         let parentDir = (zipPath as NSString).deletingLastPathComponent
         let scratch = parentDir + "/_relios-staple"
 
@@ -178,8 +179,9 @@ public struct Notarizer: Sendable {
         }
         let appPath = scratch + "/" + appName
 
-        // Staple the .app.
+        // Staple + validate the .app (before re-zipping — zips can't hold tickets).
         try staple(path: appPath)
+        try validate(path: appPath)
 
         // Re-zip back over the original path.
         try? fs.removeItem(at: zipPath)
@@ -192,8 +194,6 @@ public struct Notarizer: Sendable {
                 underlying: "ditto rezip exit \(rezip.exitCode): \(rezip.stderr)"
             )
         }
-
-        return zipPath
     }
 
     private func shellQuote(_ s: String) -> String {
