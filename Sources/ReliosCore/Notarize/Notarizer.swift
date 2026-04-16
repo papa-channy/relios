@@ -119,12 +119,23 @@ public struct Notarizer: Sendable {
 
     // MARK: - staple
 
+    /// Staple with retry. Apple's CDN can lag a few seconds behind
+    /// notarytool's "Accepted" verdict — `stapler staple` exits 65/66
+    /// when the ticket hasn't replicated yet. Three attempts with
+    /// 10-second gaps cover the typical propagation window.
     private func staple(path: String) throws {
-        let result = try process.runShell(
-            "xcrun stapler staple \(shellQuote(path))",
-            cwd: nil
-        )
-        guard result.exitCode == 0 else {
+        let maxAttempts = 3
+        let delaySec: UInt32 = 10
+        for attempt in 1...maxAttempts {
+            let result = try process.runShell(
+                "xcrun stapler staple \(shellQuote(path))",
+                cwd: nil
+            )
+            if result.exitCode == 0 { return }
+            if attempt < maxAttempts && (result.exitCode == 65 || result.exitCode == 66) {
+                sleep(delaySec)
+                continue
+            }
             throw NotarizeError.stapleFailed(
                 exitCode: result.exitCode,
                 stderr: result.stderr
