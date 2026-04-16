@@ -15,8 +15,10 @@ public struct NotarizeSection: Decodable, Equatable, Sendable {
 
     public let enabled: Bool
     public let target: Target
-    /// Max wait for `xcrun notarytool submit --wait`. Apple averages 2-5 min
-    /// but spikes to 15+ during load; 1800s (30 min) is the safe default.
+    /// Max wait for `xcrun notarytool submit --wait`. Apple claims 5-15
+    /// minutes but observed times in 2025 commonly run 20-45 minutes and
+    /// occasionally cross an hour even with healthy Notary Service status.
+    /// 3600s (60 min) leaves headroom for a quiet weekend with load.
     public let timeoutSeconds: Int
 
     private enum CodingKeys: String, CodingKey {
@@ -29,10 +31,10 @@ public struct NotarizeSection: Decodable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         self.enabled        = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
         self.target         = try c.decodeIfPresent(Target.self, forKey: .target) ?? .auto
-        self.timeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .timeoutSeconds) ?? 1800
+        self.timeoutSeconds = try c.decodeIfPresent(Int.self, forKey: .timeoutSeconds) ?? 3600
     }
 
-    public init(enabled: Bool = true, target: Target = .auto, timeoutSeconds: Int = 1800) {
+    public init(enabled: Bool = true, target: Target = .auto, timeoutSeconds: Int = 3600) {
         self.enabled = enabled
         self.target = target
         self.timeoutSeconds = timeoutSeconds
