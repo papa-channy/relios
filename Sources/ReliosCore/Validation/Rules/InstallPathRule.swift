@@ -15,10 +15,11 @@ public struct InstallPathRule: ValidationRule {
             return .warn(
                 title: "install path parent missing",
                 reason: "Directory \(parentDir) does not exist",
-                fix: "Create the directory or update [install].path in relios.toml"
+                fix: "Create the directory or update [install].path in relios.toml",
+                code: DiagnosticCode("INSTALL_PATH_PARENT_MISSING")
             )
         }
 
-        return .ok(title: "install path writable")
+        return .ok(title: "install path writable", code: DiagnosticCode("INSTALL_PATH_OK"))
     }
 }

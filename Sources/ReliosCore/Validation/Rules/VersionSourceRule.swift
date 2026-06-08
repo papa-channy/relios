@@ -17,7 +17,8 @@ public struct VersionSourceRule: ValidationRule {
             return .fail(
                 title: "version source file missing",
                 reason: "\(spec.version.sourceFile) not found at \(path)",
-                fix: "Create the file or update [version].source_file in relios.toml"
+                fix: "Create the file or update [version].source_file in relios.toml",
+                code: DiagnosticCode("VERSION_SOURCE_MISSING")
             )
         }
 
@@ -28,16 +29,18 @@ public struct VersionSourceRule: ValidationRule {
             return .fail(
                 title: "version source unreadable",
                 reason: error.shortReason,
-                fix: error.shortFix
+                fix: error.shortFix,
+                code: DiagnosticCode("VERSION_SOURCE_UNREADABLE")
             )
         } catch {
             return .fail(
                 title: "version source error",
                 reason: String(describing: error),
-                fix: "Check [version] section in relios.toml"
+                fix: "Check [version] section in relios.toml",
+                code: DiagnosticCode("VERSION_SOURCE_ERROR")
             )
         }
 
-        return .ok(title: "version source readable")
+        return .ok(title: "version source readable", code: DiagnosticCode("VERSION_SOURCE_OK"))
     }
 }

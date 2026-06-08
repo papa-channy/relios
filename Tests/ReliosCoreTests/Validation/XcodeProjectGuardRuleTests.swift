@@ -40,7 +40,7 @@ final class XcodeProjectGuardRuleTests: XCTestCase {
 
         let result = rule.evaluate(context)
 
-        guard case .ok(let title) = result else {
+        guard case .ok(let title, _) = result else {
             XCTFail("Expected .ok, got \(result)")
             return
         }
@@ -60,7 +60,7 @@ final class XcodeProjectGuardRuleTests: XCTestCase {
 
         let result = rule.evaluate(context)
 
-        guard case .fail(_, let reason, let fix) = result else {
+        guard case .fail(_, let reason, let fix, _) = result else {
             XCTFail("Expected .fail, got \(result)")
             return
         }
@@ -79,7 +79,7 @@ final class XcodeProjectGuardRuleTests: XCTestCase {
 
         let result = rule.evaluate(context)
 
-        guard case .fail(_, let reason, _) = result else {
+        guard case .fail(_, let reason, _, _) = result else {
             XCTFail("Expected .fail, got \(result)")
             return
         }
@@ -97,7 +97,7 @@ final class XcodeProjectGuardRuleTests: XCTestCase {
 
         let result = rule.evaluate(context)
 
-        guard case .fail(_, let reason, _) = result else {
+        guard case .fail(_, let reason, _, _) = result else {
             XCTFail("Expected .fail, got \(result)")
             return
         }
@@ -120,7 +120,7 @@ final class XcodeProjectGuardRuleTests: XCTestCase {
 
         let result = rule.evaluate(context)
 
-        guard case .fail(_, let reason, _) = result else {
+        guard case .fail(_, let reason, _, _) = result else {
             XCTFail("Expected .fail, got \(result)")
             return
         }

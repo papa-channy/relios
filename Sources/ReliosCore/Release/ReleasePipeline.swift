@@ -39,24 +39,58 @@ public struct ReleasePipeline: Sendable {
             bump: options.bump
         )
 
-        try runBuild(spec: spec, projectRoot: projectRoot)
-
         let outputPath = projectRoot + "/" + spec.bundle.outputPath
+        let versionSourcePath = projectRoot + "/" + spec.version.sourceFile
+
+        // Update the version source BEFORE building. The version source is
+        // typically compiled into the app, so bumping it *after* the build
+        // would ship a binary whose embedded version is one release behind its
+        // Info.plist, release manifest, and artifact filename. We snapshot the
+        // original contents first and restore them if the build (or artifact
+        // verification) fails — preserving the "a failed build never advances
+        // the version" guarantee while keeping the embedded version consistent
+        // with everything else.
+        //
+        // Dry-run never writes: it builds the *current* source purely to prove
+        // the build succeeds, then stops, so the embedded version is moot.
+        var versionSnapshot: String? = nil
+        if !options.dryRun {
+            versionSnapshot = try? fs.readUTF8(at: versionSourcePath)
+            try updateVersionSource(
+                spec: spec,
+                projectRoot: projectRoot,
+                version: nextVersion,
+                build: nextBuild
+            )
+        }
+
+        do {
+            try runBuild(spec: spec, projectRoot: projectRoot)
+        } catch {
+            restoreVersionSource(versionSnapshot, to: versionSourcePath)
+            throw error
+        }
 
         // In assembly mode, locate the binary produced by the build.
         // In passthrough mode, verify the .app the build produced exists.
         let binaryPath: String
-        if isPassthrough {
-            try verifyAppExists(at: outputPath)
-            binaryPath = outputPath
-        } else {
-            binaryPath = try verifyBuildArtifact(
-                spec: spec,
-                projectRoot: projectRoot
-            )
+        do {
+            if isPassthrough {
+                try verifyAppExists(at: outputPath)
+                binaryPath = outputPath
+            } else {
+                binaryPath = try verifyBuildArtifact(
+                    spec: spec,
+                    projectRoot: projectRoot
+                )
+            }
+        } catch {
+            restoreVersionSource(versionSnapshot, to: versionSourcePath)
+            throw error
         }
 
-        // Dry-run: stop here, NO writes.
+        // Dry-run: stop here. No Relios-owned writes occurred — the version
+        // source was never touched; the build wrote only to its own caches.
         if options.dryRun {
             return ReleaseSummary(
                 appName: spec.app.name,
@@ -64,7 +98,7 @@ public struct ReleasePipeline: Sendable {
                 previousBuild: currentBuild,
                 nextVersion: nextVersion,
                 nextBuild: nextBuild,
-                buildCommand: spec.build.command,
+                buildCommand: spec.build.displayCommand,
                 binaryPath: binaryPath,
                 dryRun: true,
                 passthrough: isPassthrough,
@@ -72,13 +106,8 @@ public struct ReleasePipeline: Sendable {
             )
         }
 
-        // Steps 6-9: non-dry-run only — these write to disk.
-        try updateVersionSource(
-            spec: spec,
-            projectRoot: projectRoot,
-            version: nextVersion,
-            build: nextBuild
-        )
+        // Version source was already updated (pre-build) above, so the binary
+        // assembled below embeds the same version the Info.plist will declare.
 
         // Assembly mode: build .app from binary + resources + Info.plist.
         // Passthrough mode: .app already exists — skip straight to signing.
@@ -177,14 +206,17 @@ public struct ReleasePipeline: Sendable {
             VersionSourceRule(),
             BuildReadinessRule(),
             SigningReadinessRule(),
+            PathSafetyRule(),
+            BuildTrustRule(),
         ]
         for rule in rules {
             let result = rule.evaluate(context)
-            if case .fail(let title, let reason, let fix) = result {
+            if case .fail(let title, let reason, let fix, let code) = result {
                 throw ReleaseError.preflightFailed(
                     ruleTitle: title,
                     reason: reason,
-                    fix: fix
+                    fix: fix,
+                    code: code
                 )
             }
         }
@@ -281,6 +313,15 @@ public struct ReleasePipeline: Sendable {
                 fix: error.shortFix
             )
         }
+    }
+
+    /// Restores the version source to its pre-release contents. Called when a
+    /// build (or artifact verification) fails after the version was bumped, so
+    /// a failed release never leaves the version source advanced. Best-effort:
+    /// if no snapshot was captured, there is nothing to restore.
+    private func restoreVersionSource(_ snapshot: String?, to path: String) {
+        guard let snapshot else { return }
+        try? fs.writeUTF8(snapshot, to: path)
     }
 
     private func assembleAppBundle(

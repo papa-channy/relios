@@ -9,15 +9,26 @@ import ReliosSupport
 /// exist, the error lists them together so the user sees the full picture
 /// in one shot (instead of re-running and hitting a second failure).
 public struct CIInitRunner: Sendable {
-    public struct FileResult: Equatable, Sendable {
+    public struct FileResult: Equatable, Sendable, Encodable {
         public let path: String
         public let overwritten: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case path
+            case overwritten
+        }
     }
 
-    public struct Result: Equatable, Sendable {
+    public struct Result: Equatable, Sendable, Encodable {
         public let mode: BundleSection.Mode
         public let projectType: ProjectSection.Kind
         public let files: [FileResult]
+
+        private enum CodingKeys: String, CodingKey {
+            case mode
+            case projectType = "project_type"
+            case files
+        }
     }
 
     private let fs: any FileSystem
@@ -36,13 +47,20 @@ public struct CIInitRunner: Sendable {
 
         let releasePath = projectRoot + "/.github/workflows/release.yml"
         let ciPath      = projectRoot + "/.github/workflows/ci.yml"
+        let autoReleasePath = projectRoot + "/.github/workflows/auto-release.yml"
 
-        let releaseExists = fs.fileExists(at: releasePath)
-        let ciExists      = fs.fileExists(at: ciPath)
+        // auto-release.yml is only generated when the auto-update feed is on —
+        // continuous "push a version bump → release" is what makes it useful.
+        let autoReleaseEnabled = spec.update?.enabled == true
+
+        let releaseExists     = fs.fileExists(at: releasePath)
+        let ciExists          = fs.fileExists(at: ciPath)
+        let autoReleaseExists = autoReleaseEnabled && fs.fileExists(at: autoReleasePath)
 
         if !force {
-            let conflicts = [releaseExists ? releasePath : nil,
-                             ciExists      ? ciPath      : nil]
+            let conflicts = [releaseExists     ? releasePath     : nil,
+                             ciExists          ? ciPath          : nil,
+                             autoReleaseExists ? autoReleasePath : nil]
                 .compactMap { $0 }
             if !conflicts.isEmpty {
                 throw CIError.workflowExists(paths: conflicts)
@@ -60,13 +78,21 @@ public struct CIInitRunner: Sendable {
         try write(releaseYAML, to: releasePath)
         try write(ciYAML,      to: ciPath)
 
+        var files = [
+            FileResult(path: releasePath, overwritten: releaseExists),
+            FileResult(path: ciPath,      overwritten: ciExists),
+        ]
+
+        if autoReleaseEnabled {
+            let autoReleaseYAML = AutoReleaseWorkflowRenderer().render(spec)
+            try write(autoReleaseYAML, to: autoReleasePath)
+            files.append(FileResult(path: autoReleasePath, overwritten: autoReleaseExists))
+        }
+
         return Result(
             mode:        spec.bundle.mode,
             projectType: spec.project.type,
-            files: [
-                FileResult(path: releasePath, overwritten: releaseExists),
-                FileResult(path: ciPath,      overwritten: ciExists),
-            ]
+            files: files
         )
     }
 

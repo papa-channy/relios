@@ -14,11 +14,23 @@ public struct Diagnostic: Sendable, Equatable {
     public let title: String
     public let reason: String?
     public let fix: String?
+    /// Stable machine-readable identifier (carried from the rule's `RuleResult`).
+    public let code: DiagnosticCode
 
-    public init(status: Status, title: String, reason: String?, fix: String?) {
+    public init(status: Status, title: String, reason: String?, fix: String?, code: DiagnosticCode) {
         self.status = status
         self.title = title
         self.reason = reason
         self.fix = fix
+        self.code = code
+    }
+
+    /// Severity mirrors `status` in the `Severity` vocabulary used by JSON output.
+    public var severity: Severity {
+        switch status {
+        case .ok:   return .ok
+        case .warn: return .warn
+        case .fail: return .fail
+        }
     }
 }

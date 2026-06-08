@@ -35,10 +35,14 @@ public struct ReleaseCommand: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Verbose output.")
     public var verbose: Bool = false
 
+    @OptionGroup public var global: GlobalOptions
+
     public init() {}
 
     public func run() throws {
         let root = FileManager.default.currentDirectoryPath
+        let lock = try acquireProjectLock(command: "release", projectRoot: root, json: global.isJSON)
+        defer { lock.release(projectRoot: root) }
         let fs = RealFileSystem()
         let process = RealProcessRunner()
         let specPath = root + "/relios.toml"
@@ -48,7 +52,12 @@ public struct ReleaseCommand: ParsableCommand {
         do {
             spec = try SpecLoader(fs: fs).load(from: specPath)
         } catch let error as SpecLoadError {
-            printSpecLoadFailure(error)
+            if global.isJSON {
+                Report.failure(command: "release", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+            } else {
+                printSpecLoadFailure(error)
+            }
             throw ExitCode.failure
         }
 
@@ -67,11 +76,22 @@ public struct ReleaseCommand: ParsableCommand {
         do {
             summary = try pipeline.run(spec: spec, projectRoot: root, options: options)
         } catch let error as ReleaseError {
-            printReleaseFailure(error)
+            if global.isJSON {
+                Report.failure(command: "release", code: error.code,
+                               reason: error.reason, fix: error.fix,
+                               step: error.step.label,
+                               detail: verbose ? error.stderrTail : nil)
+            } else {
+                printReleaseFailure(error)
+            }
             throw ExitCode.failure
         }
 
-        printReleaseSummary(summary)
+        if global.isJSON {
+            Report.success(command: "release", data: summary)
+        } else {
+            printReleaseSummary(summary)
+        }
     }
 
     // MARK: - bump translation

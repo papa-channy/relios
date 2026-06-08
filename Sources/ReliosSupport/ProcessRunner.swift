@@ -19,6 +19,11 @@ public protocol ProcessRunner: Sendable {
     /// instead of a silent wait. Returned `ProcessResult` still contains
     /// the full output for downstream parsing.
     func runShellStreaming(_ command: String, cwd: String?) throws -> ProcessResult
+
+    /// Run `executable` with `arguments` directly — NO shell, so there is no
+    /// metacharacter expansion or command injection. Preferred for the
+    /// user-controlled build command (`[build].executable`/`arguments`).
+    func run(executable: String, arguments: [String], cwd: String?) throws -> ProcessResult
 }
 
 extension ProcessRunner {
@@ -26,6 +31,15 @@ extension ProcessRunner {
     // non-streaming callers happy.
     public func runShellStreaming(_ command: String, cwd: String?) throws -> ProcessResult {
         try runShell(command, cwd: cwd)
+    }
+
+    // Default: shell-quote and route through runShell. `RealProcessRunner`
+    // overrides this to avoid the shell entirely.
+    public func run(executable: String, arguments: [String], cwd: String?) throws -> ProcessResult {
+        let quoted = ([executable] + arguments)
+            .map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+            .joined(separator: " ")
+        return try runShell(quoted, cwd: cwd)
     }
 }
 
@@ -48,6 +62,34 @@ public struct RealProcessRunner: ProcessRunner {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", command]
+        if let cwd {
+            process.currentDirectoryURL = URL(fileURLWithPath: cwd)
+        }
+
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        let stdoutData = (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data()
+        let stderrData = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
+
+        return ProcessResult(
+            exitCode: process.terminationStatus,
+            stdout: String(data: stdoutData, encoding: .utf8) ?? "",
+            stderr: String(data: stderrData, encoding: .utf8) ?? ""
+        )
+    }
+
+    /// Direct argv execution via `/usr/bin/env` — resolves the executable on
+    /// PATH WITHOUT a shell, so build-command strings can't inject shell.
+    public func run(executable: String, arguments: [String], cwd: String?) throws -> ProcessResult {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [executable] + arguments
         if let cwd {
             process.currentDirectoryURL = URL(fileURLWithPath: cwd)
         }

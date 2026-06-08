@@ -10,10 +10,10 @@ public struct DMGReadinessRule: ValidationRule {
 
     public func evaluate(_ context: ValidationContext) -> RuleResult {
         guard let dmg = context.spec.dmg, dmg.enabled else {
-            return .ok(title: "dmg check skipped (disabled)")
+            return .ok(title: "dmg check skipped (disabled)", code: DiagnosticCode("DMG_OK"))
         }
         guard let process = context.process else {
-            return .ok(title: "dmg check skipped (no process runner)")
+            return .ok(title: "dmg check skipped (no process runner)", code: DiagnosticCode("DMG_OK"))
         }
 
         let result: ProcessResult
@@ -23,16 +23,18 @@ public struct DMGReadinessRule: ValidationRule {
             return .warn(
                 title: "dmgbuild check failed",
                 reason: "Could not check for dmgbuild: \(error)",
-                fix: "Install it: `pip install dmgbuild` (or `pipx install dmgbuild`)"
+                fix: "Install it: `pip install dmgbuild` (or `pipx install dmgbuild`)",
+                code: DiagnosticCode("DMG_TOOL_NOT_FOUND")
             )
         }
         guard result.exitCode == 0 else {
             return .warn(
                 title: "dmgbuild not found",
                 reason: "`dmgbuild` is not in PATH; `relios dmg` will fail until it is installed",
-                fix: "Install it: `pip install dmgbuild` (or `pipx install dmgbuild`)"
+                fix: "Install it: `pip install dmgbuild` (or `pipx install dmgbuild`)",
+                code: DiagnosticCode("DMG_TOOL_NOT_FOUND")
             )
         }
-        return .ok(title: "dmgbuild available")
+        return .ok(title: "dmgbuild available", code: DiagnosticCode("DMG_OK"))
     }
 }

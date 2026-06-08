@@ -8,6 +8,14 @@ public enum BuildError: Error, Equatable {
 }
 
 extension BuildError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .processFailed:  return DiagnosticCode("BUILD_PROCESS_FAILED")
+        case .nonZeroExit:    return DiagnosticCode("BUILD_FAILED")
+        case .binaryNotFound: return DiagnosticCode("BUILD_ARTIFACT_NOT_FOUND")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .processFailed(let cmd, _):

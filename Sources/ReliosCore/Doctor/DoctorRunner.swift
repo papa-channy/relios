@@ -21,12 +21,12 @@ public struct DoctorRunner: Sendable {
 
     private static func translate(_ result: RuleResult) -> Diagnostic {
         switch result {
-        case .ok(let title):
-            return Diagnostic(status: .ok, title: title, reason: nil, fix: nil)
-        case .warn(let title, let reason, let fix):
-            return Diagnostic(status: .warn, title: title, reason: reason, fix: fix)
-        case .fail(let title, let reason, let fix):
-            return Diagnostic(status: .fail, title: title, reason: reason, fix: fix)
+        case .ok(let title, let code):
+            return Diagnostic(status: .ok, title: title, reason: nil, fix: nil, code: code)
+        case .warn(let title, let reason, let fix, let code):
+            return Diagnostic(status: .warn, title: title, reason: reason, fix: fix, code: code)
+        case .fail(let title, let reason, let fix, let code):
+            return Diagnostic(status: .fail, title: title, reason: reason, fix: fix, code: code)
         }
     }
 }

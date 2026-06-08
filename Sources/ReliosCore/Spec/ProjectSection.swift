@@ -1,5 +1,5 @@
 public struct ProjectSection: Decodable, Equatable, Sendable {
-    public enum Kind: String, Decodable, Equatable, Sendable {
+    public enum Kind: String, Decodable, Encodable, Equatable, Sendable {
         case swiftpm
         case xcodebuild
     }

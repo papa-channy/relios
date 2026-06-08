@@ -10,9 +10,10 @@ public struct CIWorkflowPresenceRule: ValidationRule {
             return .warn(
                 title: "ci workflow missing",
                 reason: ".github/workflows/ci.yml not found",
-                fix: "Run `relios ci init` to regenerate (use --force if release.yml already exists)"
+                fix: "Run `relios ci init` to regenerate (use --force if release.yml already exists)",
+                code: DiagnosticCode("CI_WORKFLOW_MISSING")
             )
         }
-        return .ok(title: "ci workflow present")
+        return .ok(title: "ci workflow present", code: DiagnosticCode("CI_WORKFLOW_PRESENT"))
     }
 }

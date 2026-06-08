@@ -7,7 +7,7 @@ final class NotarizeReadinessRuleTests: XCTestCase {
     func test_skippedWhenNotarizeAbsent() throws {
         let (ctx, env) = try makeContext(notarizeTOML: nil, env: [:], notarytoolOK: true)
         let result = NotarizeReadinessRule(env: env).evaluate(ctx)
-        guard case .ok(let title) = result else { return XCTFail("expected .ok") }
+        guard case .ok(let title, _) = result else { return XCTFail("expected .ok") }
         XCTAssertTrue(title.contains("skipped"))
     }
 
@@ -29,7 +29,7 @@ final class NotarizeReadinessRuleTests: XCTestCase {
             notarytoolOK: true,
             signingMode: "adhoc"
         )
-        guard case .fail(_, let reason, _) = NotarizeReadinessRule(env: env).evaluate(ctx) else {
+        guard case .fail(_, let reason, _, _) = NotarizeReadinessRule(env: env).evaluate(ctx) else {
             return XCTFail("expected .fail")
         }
         XCTAssertTrue(reason.contains("developer-id"))
@@ -41,7 +41,7 @@ final class NotarizeReadinessRuleTests: XCTestCase {
             env: fullEnv,
             notarytoolOK: false
         )
-        guard case .fail(let title, _, _) = NotarizeReadinessRule(env: env).evaluate(ctx) else {
+        guard case .fail(let title, _, _, _) = NotarizeReadinessRule(env: env).evaluate(ctx) else {
             return XCTFail("expected .fail")
         }
         XCTAssertEqual(title, "notarytool not available")
@@ -53,7 +53,7 @@ final class NotarizeReadinessRuleTests: XCTestCase {
             env: [:],
             notarytoolOK: true
         )
-        guard case .warn(_, let reason, _) = NotarizeReadinessRule(env: env).evaluate(ctx) else {
+        guard case .warn(_, let reason, _, _) = NotarizeReadinessRule(env: env).evaluate(ctx) else {
             return XCTFail("expected .warn")
         }
         XCTAssertTrue(reason.contains("APPLE_ID"))
@@ -67,7 +67,7 @@ final class NotarizeReadinessRuleTests: XCTestCase {
             env: envDict,
             notarytoolOK: true
         )
-        guard case .warn(let title, _, _) = NotarizeReadinessRule(env: env).evaluate(ctx) else {
+        guard case .warn(let title, _, _, _) = NotarizeReadinessRule(env: env).evaluate(ctx) else {
             return XCTFail("expected .warn")
         }
         XCTAssertEqual(title, "team_id mismatch")

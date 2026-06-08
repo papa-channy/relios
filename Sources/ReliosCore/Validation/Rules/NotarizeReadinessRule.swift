@@ -16,7 +16,7 @@ public struct NotarizeReadinessRule: ValidationRule {
 
     public func evaluate(_ context: ValidationContext) -> RuleResult {
         guard let notarize = context.spec.notarize, notarize.enabled else {
-            return .ok(title: "notarize check skipped (disabled)")
+            return .ok(title: "notarize check skipped (disabled)", code: DiagnosticCode("NOTARIZE_OK"))
         }
 
         // Hard requirement: Developer ID signing.
@@ -24,7 +24,8 @@ public struct NotarizeReadinessRule: ValidationRule {
             return .fail(
                 title: "notarize requires developer-id signing",
                 reason: "[notarize].enabled = true requires [signing].mode = \"developer-id\" (current: \"\(context.spec.signing.mode.rawValue)\")",
-                fix: "Change [signing].mode to \"developer-id\" — notarization cannot be applied to ad-hoc binaries"
+                fix: "Change [signing].mode to \"developer-id\" — notarization cannot be applied to ad-hoc binaries",
+                code: DiagnosticCode("NOTARIZE_REQUIRES_DEVID")
             )
         }
 
@@ -36,7 +37,8 @@ public struct NotarizeReadinessRule: ValidationRule {
                 return .fail(
                     title: "notarytool not available",
                     reason: "`xcrun notarytool` did not run (exit \(result.exitCode))",
-                    fix: "Install Xcode 13+ (Command Line Tools alone don't include notarytool)"
+                    fix: "Install Xcode 13+ (Command Line Tools alone don't include notarytool)",
+                    code: DiagnosticCode("NOTARYTOOL_NOT_FOUND")
                 )
             }
         }
@@ -49,7 +51,8 @@ public struct NotarizeReadinessRule: ValidationRule {
             return .warn(
                 title: "notarize credentials not set locally",
                 reason: "missing env: \(missing.joined(separator: ", "))",
-                fix: "Set them before running `relios notarize`, or supply them via GitHub secrets in CI"
+                fix: "Set them before running `relios notarize`, or supply them via GitHub secrets in CI",
+                code: DiagnosticCode("NOTARIZE_CREDENTIALS_MISSING")
             )
         }
 
@@ -61,10 +64,11 @@ public struct NotarizeReadinessRule: ValidationRule {
             return .warn(
                 title: "team_id mismatch",
                 reason: "[signing].team_id (\(specTeam)) ≠ APPLE_TEAM_ID (\(envTeam))",
-                fix: "Align the two — Apple rejects submissions where the signer's team differs from the submitter's"
+                fix: "Align the two — Apple rejects submissions where the signer's team differs from the submitter's",
+                code: DiagnosticCode("NOTARIZE_TEAM_ID_MISMATCH")
             )
         }
 
-        return .ok(title: "notarize ready")
+        return .ok(title: "notarize ready", code: DiagnosticCode("NOTARIZE_OK"))
     }
 }

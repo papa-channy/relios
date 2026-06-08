@@ -8,6 +8,16 @@ public enum DMGError: Error, Equatable {
 }
 
 extension DMGError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .disabled:         return DiagnosticCode("DMG_DISABLED")
+        case .appMissing:       return DiagnosticCode("DMG_APP_MISSING")
+        case .dmgbuildNotFound: return DiagnosticCode("DMG_TOOL_NOT_FOUND")
+        case .dmgbuildFailed:   return DiagnosticCode("DMG_BUILD_FAILED")
+        case .writeFailed:      return DiagnosticCode("DMG_WRITE_FAILED")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .disabled:

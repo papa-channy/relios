@@ -10,9 +10,10 @@ public struct ReleaseWorkflowPresenceRule: ValidationRule {
             return .fail(
                 title: "release workflow missing",
                 reason: ".github/workflows/release.yml not found",
-                fix: "Run `relios ci init` to generate it"
+                fix: "Run `relios ci init` to generate it",
+                code: DiagnosticCode("CI_RELEASE_WORKFLOW_MISSING")
             )
         }
-        return .ok(title: "release workflow present")
+        return .ok(title: "release workflow present", code: DiagnosticCode("CI_RELEASE_WORKFLOW_PRESENT"))
     }
 }

@@ -9,10 +9,32 @@ public struct InitCommand: ParsableCommand {
         abstract: "Generate a relios.toml skeleton in the current project."
     )
 
+    @OptionGroup public var global: GlobalOptions
+
     public init() {}
+
+    struct InitPayload: Encodable {
+        let createdFiles: [String]
+        let projectType: String
+        let binaryTarget: String
+        let bundleMode: String
+        let bundleId: String
+        let signingMode: String
+
+        enum CodingKeys: String, CodingKey {
+            case createdFiles = "created_files"
+            case projectType = "project_type"
+            case binaryTarget = "binary_target"
+            case bundleMode = "bundle_mode"
+            case bundleId = "bundle_id"
+            case signingMode = "signing_mode"
+        }
+    }
 
     public func run() throws {
         let root = FileManager.default.currentDirectoryPath
+        let lock = try acquireProjectLock(command: "init", projectRoot: root, json: global.isJSON)
+        defer { lock.release(projectRoot: root) }
         let fs = RealFileSystem()
 
         let scanner = ProjectScanner(fs: fs)
@@ -20,7 +42,12 @@ public struct InitCommand: ParsableCommand {
         do {
             scan = try scanner.scan(root: root)
         } catch let error as InitError {
-            printInitFailure(error)
+            if global.isJSON {
+                Report.failure(command: "init", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+            } else {
+                printInitFailure(error)
+            }
             throw ExitCode.failure
         }
 
@@ -46,7 +73,12 @@ public struct InitCommand: ParsableCommand {
             try writer.write(skeleton, to: specPath)
             createdFiles.append("relios.toml")
         } catch let error as InitError {
-            printInitFailure(error)
+            if global.isJSON {
+                Report.failure(command: "init", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+            } else {
+                printInitFailure(error)
+            }
             throw ExitCode.failure
         }
 
@@ -62,7 +94,20 @@ public struct InitCommand: ParsableCommand {
             }
         }
 
-        printSummary(skeleton, createdFiles: createdFiles, keychain: keychainOutcome)
+        if global.isJSON {
+            let signingMode: String
+            if case .single = keychainOutcome { signingMode = "developer-id" } else { signingMode = "adhoc" }
+            Report.success(command: "init", data: InitPayload(
+                createdFiles: createdFiles,
+                projectType: skeleton.projectType.rawValue,
+                binaryTarget: skeleton.binaryTarget,
+                bundleMode: skeleton.bundleMode.rawValue,
+                bundleId: skeleton.bundleId,
+                signingMode: signingMode
+            ))
+        } else {
+            printSummary(skeleton, createdFiles: createdFiles, keychain: keychainOutcome)
+        }
     }
 
     // MARK: - keychain probe

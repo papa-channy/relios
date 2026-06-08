@@ -8,6 +8,14 @@ public enum SpecLoadError: Error, Equatable {
 }
 
 extension SpecLoadError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .missing:    return DiagnosticCode("SPEC_NOT_FOUND")
+        case .unreadable: return DiagnosticCode("SPEC_UNREADABLE")
+        case .malformed:  return DiagnosticCode("SPEC_MALFORMED")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .missing(let path):

@@ -20,6 +20,11 @@ public struct ReliosCommand: ParsableCommand {
             SigningCommand.self,
             DMGCommand.self,
             NotarizeCommand.self,
+            UpdateCommand.self,
+            VersionCommand.self,
+            CapabilitiesCommand.self,
+            StatusCommand.self,
+            RecoverCommand.self,
         ]
     )
 

@@ -7,7 +7,7 @@
 /// only ever has to switch on `ReleaseError`, never on five different
 /// domain enums.
 public enum ReleaseError: Error, Equatable {
-    case preflightFailed(ruleTitle: String, reason: String, fix: String)
+    case preflightFailed(ruleTitle: String, reason: String, fix: String, code: DiagnosticCode)
     case versionReadFailed(reason: String, fix: String)
     case buildFailed(reason: String, fix: String, stderrTail: String?)
     case artifactNotFound(searched: [String])
@@ -41,9 +41,30 @@ extension ReleaseError {
         }
     }
 
+    /// Stable machine-readable identifier for JSON output. `preflightFailed`
+    /// carries the failing rule's own code so the release error surfaces the
+    /// specific cause (e.g. SIGNING_IDENTITY_NOT_FOUND), not a generic one.
+    public var code: DiagnosticCode {
+        switch self {
+        case .preflightFailed(_, _, _, let code): return code
+        case .versionReadFailed:    return DiagnosticCode("VERSION_SOURCE_READ_FAILED")
+        case .buildFailed:          return DiagnosticCode("BUILD_FAILED")
+        case .artifactNotFound:     return DiagnosticCode("BUILD_ARTIFACT_NOT_FOUND")
+        case .versionUpdateFailed:  return DiagnosticCode("VERSION_UPDATE_FAILED")
+        case .bundleAssemblyFailed: return DiagnosticCode("BUNDLE_ASSEMBLY_FAILED")
+        case .plistWriteFailed:     return DiagnosticCode("PLIST_WRITE_FAILED")
+        case .signingFailed:        return DiagnosticCode("SIGNING_FAILED")
+        case .backupFailed:         return DiagnosticCode("BACKUP_FAILED")
+        case .terminateFailed:      return DiagnosticCode("TERMINATE_FAILED")
+        case .installFailed:        return DiagnosticCode("INSTALL_FAILED")
+        case .launchFailed:         return DiagnosticCode("LAUNCH_FAILED")
+        case .manifestWriteFailed:  return DiagnosticCode("MANIFEST_WRITE_FAILED")
+        }
+    }
+
     public var reason: String {
         switch self {
-        case .preflightFailed(let title, let reason, _):
+        case .preflightFailed(let title, let reason, _, _):
             return "\(title): \(reason)"
         case .versionReadFailed(let reason, _),
              .versionUpdateFailed(let reason, _),
@@ -64,7 +85,7 @@ extension ReleaseError {
 
     public var fix: String {
         switch self {
-        case .preflightFailed(_, _, let fix):
+        case .preflightFailed(_, _, let fix, _):
             return fix
         case .versionReadFailed(_, let fix),
              .versionUpdateFailed(_, let fix),

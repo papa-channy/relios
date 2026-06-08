@@ -9,6 +9,8 @@ public struct InspectCommand: ParsableCommand {
         abstract: "Show the latest release manifest and the currently installed app's state."
     )
 
+    @OptionGroup public var global: GlobalOptions
+
     public init() {}
 
     public func run() throws {
@@ -21,6 +23,11 @@ public struct InspectCommand: ParsableCommand {
         do {
             manifest = try reader.readLatest(releasesDir: releasesDir)
         } catch let error as ManifestError {
+            if global.isJSON {
+                Report.failure(command: "inspect", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+                throw ExitCode.failure
+            }
             switch error {
             case .latestNotFound:
                 print("[inspect] No release manifest found.")
@@ -33,6 +40,11 @@ public struct InspectCommand: ParsableCommand {
                 print("[inspect] Unexpected error.")
                 throw ExitCode.failure
             }
+        }
+
+        if global.isJSON {
+            Report.success(command: "inspect", data: manifest)
+            return
         }
 
         print("Latest Release")

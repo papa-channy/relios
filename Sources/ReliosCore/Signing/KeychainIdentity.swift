@@ -1,7 +1,7 @@
 import ReliosSupport
 
 /// One row from `security find-identity -v -p codesigning`.
-public struct KeychainIdentity: Equatable, Sendable {
+public struct KeychainIdentity: Equatable, Sendable, Encodable {
     /// 40-char SHA1 of the certificate.
     public let hash: String
     /// The quoted identity string, e.g.
@@ -11,6 +11,11 @@ public struct KeychainIdentity: Equatable, Sendable {
     public init(hash: String, name: String) {
         self.hash = hash
         self.name = name
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case hash
+        case name
     }
 
     /// 10-char Team ID extracted from the trailing parenthesis, or `nil`

@@ -12,6 +12,20 @@ public enum NotarizeError: Error, Equatable {
 }
 
 extension NotarizeError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .disabled:            return DiagnosticCode("NOTARIZE_DISABLED")
+        case .artifactMissing:     return DiagnosticCode("NOTARIZE_ARTIFACT_MISSING")
+        case .unsupportedArtifact: return DiagnosticCode("NOTARIZE_UNSUPPORTED_ARTIFACT")
+        case .missingCredentials:  return DiagnosticCode("NOTARIZE_CREDENTIALS_MISSING")
+        case .teamIDMismatch:      return DiagnosticCode("NOTARIZE_TEAM_ID_MISMATCH")
+        case .notarytoolNotFound:  return DiagnosticCode("NOTARYTOOL_NOT_FOUND")
+        case .submissionFailed:    return DiagnosticCode("NOTARIZE_INVALID")
+        case .stapleFailed:        return DiagnosticCode("NOTARIZE_STAPLE_FAILED")
+        case .repackFailed:        return DiagnosticCode("NOTARIZE_REPACK_FAILED")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .disabled:

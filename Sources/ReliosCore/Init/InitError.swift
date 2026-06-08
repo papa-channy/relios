@@ -7,6 +7,13 @@ public enum InitError: Error, Equatable {
 }
 
 extension InitError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .notSwiftPMProject: return DiagnosticCode("INIT_NOT_A_PROJECT")
+        case .writeFailed:       return DiagnosticCode("INIT_WRITE_FAILED")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .notSwiftPMProject(let root):

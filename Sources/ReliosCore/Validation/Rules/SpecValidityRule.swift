@@ -14,7 +14,8 @@ public struct SpecValidityRule: ValidationRule {
             return .fail(
                 title: "app.name is empty",
                 reason: "Application name must not be empty",
-                fix: "Set [app].name in relios.toml"
+                fix: "Set [app].name in relios.toml",
+                code: DiagnosticCode("SPEC_NAME_EMPTY")
             )
         }
 
@@ -22,7 +23,8 @@ public struct SpecValidityRule: ValidationRule {
             return .fail(
                 title: "bundle_id is empty",
                 reason: "Bundle identifier is required",
-                fix: "Set [app].bundle_id in relios.toml"
+                fix: "Set [app].bundle_id in relios.toml",
+                code: DiagnosticCode("SPEC_BUNDLE_ID_EMPTY")
             )
         }
 
@@ -30,10 +32,11 @@ public struct SpecValidityRule: ValidationRule {
             return .fail(
                 title: "binary_target is empty",
                 reason: "No executable target specified",
-                fix: "Set [project].binary_target in relios.toml"
+                fix: "Set [project].binary_target in relios.toml",
+                code: DiagnosticCode("SPEC_BINARY_TARGET_EMPTY")
             )
         }
 
-        return .ok(title: "spec valid")
+        return .ok(title: "spec valid", code: DiagnosticCode("SPEC_VALID"))
     }
 }

@@ -9,6 +9,14 @@ public enum SigningError: Error, Equatable {
 }
 
 extension SigningError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .processFailed:             return DiagnosticCode("SIGNING_PROCESS_FAILED")
+        case .nonZeroExit:               return DiagnosticCode("SIGNING_FAILED")
+        case .missingDeveloperIDConfig:  return DiagnosticCode("SIGNING_IDENTITY_UNSET")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .processFailed(let cmd, _):

@@ -18,6 +18,28 @@ public protocol FileSystem: Sendable {
     func removeItem(at path: String) throws
     func moveItem(from source: String, to destination: String) throws
     func createDirectory(at path: String) throws
+    /// Resolve symlinks and `..`/`.` to a canonical absolute path. Used for
+    /// real-filesystem escape detection. Returns `nil` if it can't be resolved.
+    func canonicalize(_ path: String) -> String?
+    /// Whether `path` is itself a symbolic link (not whether its target is).
+    func isSymlink(at path: String) -> Bool
+    /// Read raw bytes (for hashing binary artifacts). Distinct from `readUTF8`
+    /// which assumes text.
+    func readData(at path: String) throws -> Data
+}
+
+extension FileSystem {
+    /// Default: lexical normalization only (no symlink resolution). Fakes used
+    /// in tests inherit this; `RealFileSystem` overrides with real `realpath`.
+    public func canonicalize(_ path: String) -> String? {
+        PathSafety.normalize(path)
+    }
+    /// Default: fakes have no symlinks.
+    public func isSymlink(at path: String) -> Bool { false }
+    /// Default: treat stored text as its UTF-8 bytes (works for in-memory fakes).
+    public func readData(at path: String) throws -> Data {
+        Data(try readUTF8(at: path).utf8)
+    }
 }
 
 public struct RealFileSystem: FileSystem {
@@ -78,5 +100,33 @@ public struct RealFileSystem: FileSystem {
             withIntermediateDirectories: true,
             attributes: nil
         )
+    }
+
+    public func canonicalize(_ path: String) -> String? {
+        // realpath resolves symlinks + `..` for the existing portion of the
+        // path. For a not-yet-existing leaf, resolve the deepest existing
+        // ancestor and re-append the remainder.
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        if FileManager.default.fileExists(atPath: url.path) {
+            return url.resolvingSymlinksInPath().path
+        }
+        let parent = url.deletingLastPathComponent()
+        if FileManager.default.fileExists(atPath: parent.path) {
+            return parent.resolvingSymlinksInPath()
+                .appendingPathComponent(url.lastPathComponent).path
+        }
+        return url.path
+    }
+
+    public func isSymlink(at path: String) -> Bool {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+              let type = attrs[.type] as? FileAttributeType else {
+            return false
+        }
+        return type == .typeSymbolicLink
+    }
+
+    public func readData(at path: String) throws -> Data {
+        try Data(contentsOf: URL(fileURLWithPath: path))
     }
 }

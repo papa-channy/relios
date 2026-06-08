@@ -18,10 +18,16 @@ public struct RollbackRunner: Sendable {
         self.process = process
     }
 
-    public struct Result: Sendable, Equatable {
+    public struct Result: Sendable, Equatable, Encodable {
         public let restoredFrom: String
         public let installedAt: String
         public let launched: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case restoredFrom = "restored_from"
+            case installedAt = "installed_at"
+            case launched
+        }
     }
 
     public func run(
@@ -60,28 +66,75 @@ public struct RollbackRunner: Sendable {
             }
         }
 
-        // 3. Remove current install if exists
-        if fs.fileExists(at: installPath) {
-            try? fs.removeItem(at: installPath)
+        // Refuse to operate on a protected path (/, $HOME, project root).
+        if PathSafety.isDangerousTarget(installPath, projectRoot: projectRoot, homeDir: NSHomeDirectory()) {
+            throw RollbackError.unsafeArchive(reason: "refusing to replace protected path \(installPath)")
         }
 
-        // 4. Unzip backup to install path's parent directory
         let parentDir = (installPath as NSString).deletingLastPathComponent
-        let command = "/usr/bin/ditto -x -k '\(backupPath)' '\(parentDir)'"
-        let result: ProcessResult
+        let appName = (installPath as NSString).lastPathComponent
+
+        // 3. Extract the backup into a scratch dir first — the current install
+        //    is NOT touched until we have a validated replacement. This is what
+        //    makes rollback crash-safe: a failed/corrupt/unsafe extraction
+        //    leaves the existing app intact.
+        let scratch = parentDir + "/.relios-rollback-scratch"
+        try? fs.removeItem(at: scratch)
         do {
-            result = try process.runShell(command, cwd: nil)
+            let result = try process.runShell("/usr/bin/ditto -x -k '\(backupPath)' '\(scratch)'", cwd: nil)
+            guard result.exitCode == 0 else {
+                try? fs.removeItem(at: scratch)
+                throw RollbackError.unzipFailed(reason: "ditto exited with code \(result.exitCode): \(result.stderr)")
+            }
+        } catch let e as RollbackError {
+            throw e
         } catch {
+            try? fs.removeItem(at: scratch)
             throw RollbackError.unzipFailed(reason: String(describing: error))
         }
-        guard result.exitCode == 0 else {
-            throw RollbackError.unzipFailed(
-                reason: "ditto exited with code \(result.exitCode): \(result.stderr)"
-            )
+
+        // Zip-slip guard: every extracted entry must stay within scratch, and
+        // no top-level entry may be a symlink.
+        let entries = (try? fs.listDirectory(at: scratch)) ?? []
+        do {
+            try PathSafety.assertExtractionWithin(entries, targetDir: scratch)
+        } catch {
+            try? fs.removeItem(at: scratch)
+            throw RollbackError.unsafeArchive(reason: "archive escapes the extraction directory")
         }
-        // Trust ditto's exit code. If it returns 0, the app was extracted.
-        // A post-unzip fileExists check would fail in mock-based unit tests
-        // and adds no real safety over ditto's own error reporting.
+        for entry in entries where fs.isSymlink(at: scratch + "/" + entry) {
+            try? fs.removeItem(at: scratch)
+            throw RollbackError.unsafeArchive(reason: "archive contains a symlink: \(entry)")
+        }
+
+        let extractedApp = scratch + "/" + appName
+        guard fs.fileExists(at: extractedApp) else {
+            try? fs.removeItem(at: scratch)
+            throw RollbackError.unzipFailed(reason: "backup did not contain \(appName)")
+        }
+
+        // 4. Atomic-ish replace: stash the current install aside, move the
+        //    restored app into place, restore the stash if the move fails.
+        let stash = installPath + ".relios-rollback-old"
+        try? fs.removeItem(at: stash)
+        let hadCurrent = fs.fileExists(at: installPath)
+        if hadCurrent {
+            do {
+                try fs.moveItem(from: installPath, to: stash)
+            } catch {
+                try? fs.removeItem(at: scratch)
+                throw RollbackError.installFailed(reason: "could not stash current install: \(error)")
+            }
+        }
+        do {
+            try fs.moveItem(from: extractedApp, to: installPath)
+        } catch {
+            if hadCurrent { try? fs.moveItem(from: stash, to: installPath) }
+            try? fs.removeItem(at: scratch)
+            throw RollbackError.installFailed(reason: "could not move restored app into place: \(error)")
+        }
+        if hadCurrent { try? fs.removeItem(at: stash) }
+        try? fs.removeItem(at: scratch)
 
         // 5. Optionally launch
         var launched = false

@@ -15,4 +15,6 @@ public struct ReleaseSpec: Decodable, Equatable, Sendable {
     public let dmg: DMGSection?
     /// Optional: absent or `enabled = false` skips notarization.
     public let notarize: NotarizeSection?
+    /// Optional: absent or `enabled = false` skips auto-update feed generation.
+    public let update: UpdateSection?
 }

@@ -20,19 +20,26 @@ public struct SwiftBuildRunner: Sendable {
     }
 
     public func runBuild(spec: ReleaseSpec, projectRoot: String) throws {
+        let display = spec.build.displayCommand
         let result: ProcessResult
         do {
-            result = try process.runShell(spec.build.command, cwd: projectRoot)
+            // Prefer the safe argv form (no shell). Fall back to the legacy
+            // shell command string for back-compat.
+            if let executable = spec.build.executable {
+                result = try process.run(executable: executable, arguments: spec.build.arguments, cwd: projectRoot)
+            } else {
+                result = try process.runShell(spec.build.command, cwd: projectRoot)
+            }
         } catch {
             throw BuildError.processFailed(
-                command: spec.build.command,
+                command: display,
                 underlying: String(describing: error)
             )
         }
 
         guard result.exitCode == 0 else {
             throw BuildError.nonZeroExit(
-                command: spec.build.command,
+                command: display,
                 exitCode: result.exitCode,
                 stderrTail: String(result.stderr.suffix(800))
             )

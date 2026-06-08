@@ -3,7 +3,7 @@
 /// In dry-run, this is everything the user sees at the end. In a future
 /// non-dry release, the same struct gains fields like `installedAt`,
 /// `backupPath`, etc. — adding fields is non-breaking.
-public struct ReleaseSummary: Sendable, Equatable {
+public struct ReleaseSummary: Sendable, Equatable, Encodable {
     public let appName: String
     public let previousVersion: SemanticVersion
     public let previousBuild: BuildNumber
@@ -52,5 +52,40 @@ public struct ReleaseSummary: Sendable, Equatable {
         self.installedAt = installedAt
         self.backupPath = backupPath
         self.launched = launched
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case appName = "app_name"
+        case previousVersion = "previous_version"
+        case previousBuild = "previous_build"
+        case nextVersion = "next_version"
+        case nextBuild = "next_build"
+        case buildCommand = "build_command"
+        case binaryPath = "binary_path"
+        case dryRun = "dry_run"
+        case passthrough
+        case signingMode = "signing_mode"
+        case bundlePath = "bundle_path"
+        case installedAt = "installed_at"
+        case backupPath = "backup_path"
+        case launched
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(appName, forKey: .appName)
+        try c.encode(previousVersion.formatted, forKey: .previousVersion)
+        try c.encode(previousBuild.formatted, forKey: .previousBuild)
+        try c.encode(nextVersion.formatted, forKey: .nextVersion)
+        try c.encode(nextBuild.formatted, forKey: .nextBuild)
+        try c.encode(buildCommand, forKey: .buildCommand)
+        try c.encode(binaryPath, forKey: .binaryPath)
+        try c.encode(dryRun, forKey: .dryRun)
+        try c.encode(passthrough, forKey: .passthrough)
+        try c.encode(signingMode, forKey: .signingMode)
+        try c.encode(bundlePath, forKey: .bundlePath)
+        try c.encode(installedAt, forKey: .installedAt)
+        try c.encode(backupPath, forKey: .backupPath)
+        try c.encode(launched, forKey: .launched)
     }
 }

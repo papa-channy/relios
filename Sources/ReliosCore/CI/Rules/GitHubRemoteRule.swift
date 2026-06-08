@@ -14,7 +14,8 @@ public struct GitHubRemoteRule: ValidationRule {
             return .warn(
                 title: "git repo",
                 reason: "Not a git repository (\(context.projectRoot))",
-                fix: "Run `git init` and add a GitHub remote before pushing tags"
+                fix: "Run `git init` and add a GitHub remote before pushing tags",
+                code: DiagnosticCode("CI_GITHUB_REMOTE_MISSING")
             )
         }
 
@@ -23,10 +24,11 @@ public struct GitHubRemoteRule: ValidationRule {
             return .warn(
                 title: "github remote",
                 reason: "No github.com remote found in .git/config",
-                fix: "Add a GitHub remote: `git remote add origin https://github.com/<you>/<repo>.git`"
+                fix: "Add a GitHub remote: `git remote add origin https://github.com/<you>/<repo>.git`",
+                code: DiagnosticCode("CI_GITHUB_REMOTE_MISSING")
             )
         }
 
-        return .ok(title: "github remote present")
+        return .ok(title: "github remote present", code: DiagnosticCode("CI_GITHUB_REMOTE_PRESENT"))
     }
 }

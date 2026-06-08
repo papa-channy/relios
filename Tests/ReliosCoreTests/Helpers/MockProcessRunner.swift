@@ -8,7 +8,16 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
         let cwd: String?
     }
 
+    struct ArgvCall: Equatable {
+        let executable: String
+        let arguments: [String]
+        let cwd: String?
+    }
+
     private(set) var calls: [Call] = []
+    /// Records argv (no-shell) invocations separately so tests can assert the
+    /// safe path was taken.
+    private(set) var argvCalls: [ArgvCall] = []
     private var cannedResults: [ProcessResult]
     private let defaultResult: ProcessResult
 
@@ -35,6 +44,13 @@ final class MockProcessRunner: ProcessRunner, @unchecked Sendable {
     /// Tests use this to simulate file-system changes (e.g. ditto -x -k
     /// extracting an archive) that a real subprocess would produce.
     var sideEffects: [String: () -> Void] = [:]
+
+    func run(executable: String, arguments: [String], cwd: String?) throws -> ProcessResult {
+        argvCalls.append(ArgvCall(executable: executable, arguments: arguments, cwd: cwd))
+        // Route through runShell so command-overrides and side-effects keyed on
+        // the joined command still apply in tests.
+        return try runShell(([executable] + arguments).joined(separator: " "), cwd: cwd)
+    }
 
     func runShell(_ command: String, cwd: String?) throws -> ProcessResult {
         calls.append(Call(command: command, cwd: cwd))

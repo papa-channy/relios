@@ -24,9 +24,9 @@ final class DoctorRunnerTests: XCTestCase {
     func test_runsMultipleRulesAndPreservesOrder() throws {
         let context = try makeContext(toml: SampleTOMLs.fullSample)
         let runner = DoctorRunner(rules: [
-            FixedRule(result: .ok(title: "first")),
-            FixedRule(result: .warn(title: "second", reason: "r", fix: "f")),
-            FixedRule(result: .ok(title: "third")),
+            FixedRule(result: .ok(title: "first", code: DiagnosticCode("TEST"))),
+            FixedRule(result: .warn(title: "second", reason: "r", fix: "f", code: DiagnosticCode("TEST"))),
+            FixedRule(result: .ok(title: "third", code: DiagnosticCode("TEST"))),
         ])
 
         let diagnostics = runner.run(context)

@@ -22,18 +22,32 @@ public struct CICommand: ParsableCommand {
         @Flag(name: .long, help: "Overwrite an existing workflow file.")
         public var force: Bool = false
 
+        @OptionGroup public var global: GlobalOptions
+
         public init() {}
 
         public func run() throws {
             let root = FileManager.default.currentDirectoryPath
+            let lock = try acquireProjectLock(command: "ci init", projectRoot: root, json: global.isJSON)
+            defer { lock.release(projectRoot: root) }
             let runner = CIInitRunner(fs: RealFileSystem())
 
             let result: CIInitRunner.Result
             do {
                 result = try runner.run(projectRoot: root, force: force)
             } catch let error as CIError {
-                printFailure(error)
+                if global.isJSON {
+                    Report.failure(command: "ci init", code: error.code,
+                                   reason: error.shortReason, fix: error.shortFix)
+                } else {
+                    printFailure(error)
+                }
                 throw ExitCode.failure
+            }
+
+            if global.isJSON {
+                Report.success(command: "ci init", data: result)
+                return
             }
 
             printSummary(result)
@@ -80,6 +94,8 @@ public struct CICommand: ParsableCommand {
             abstract: "Check that the project is wired up for a GitHub Actions release."
         )
 
+        @OptionGroup public var global: GlobalOptions
+
         public init() {}
 
         public func run() throws {
@@ -91,9 +107,14 @@ public struct CICommand: ParsableCommand {
             do {
                 spec = try SpecLoader(fs: fs).load(from: specPath)
             } catch let error as SpecLoadError {
-                print("[fail] spec load")
-                print("  Reason: \(error.shortReason)")
-                print("  Fix: \(error.shortFix)")
+                if global.isJSON {
+                    Report.failure(command: "ci doctor", code: error.code,
+                                   reason: error.shortReason, fix: error.shortFix)
+                } else {
+                    print("[fail] spec load")
+                    print("  Reason: \(error.shortReason)")
+                    print("  Fix: \(error.shortFix)")
+                }
                 throw ExitCode.failure
             }
 
@@ -111,8 +132,13 @@ public struct CICommand: ParsableCommand {
             ])
 
             let diagnostics = runner.run(context)
-            for d in diagnostics { printDiagnostic(d) }
-            printSummary(diagnostics)
+
+            if global.isJSON {
+                Report.checks(command: "ci doctor", diagnostics: diagnostics)
+            } else {
+                for d in diagnostics { printDiagnostic(d) }
+                printSummary(diagnostics)
+            }
 
             if diagnostics.contains(where: { $0.status == .fail }) {
                 throw ExitCode.failure

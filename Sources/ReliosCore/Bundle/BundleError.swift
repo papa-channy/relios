@@ -5,6 +5,13 @@ public enum BundleError: Error, Equatable {
 }
 
 extension BundleError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .binaryUnreadable: return DiagnosticCode("BUNDLE_BINARY_UNREADABLE")
+        case .plistWriteFailed: return DiagnosticCode("PLIST_WRITE_FAILED")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .binaryUnreadable(let path, _):

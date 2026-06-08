@@ -13,7 +13,7 @@ final class CIDoctorRulesTests: XCTestCase {
     func test_releaseWorkflow_failsWhenMissing() throws {
         let ctx = try makeContext(files: [:])
         let r = ReleaseWorkflowPresenceRule().evaluate(ctx)
-        guard case .fail(_, let reason, let fix) = r else {
+        guard case .fail(_, let reason, let fix, _) = r else {
             return XCTFail("expected .fail, got \(r)")
         }
         XCTAssertTrue(reason.contains("release.yml"))
@@ -33,7 +33,7 @@ final class CIDoctorRulesTests: XCTestCase {
     func test_ciWorkflow_warnsWhenMissing() throws {
         let ctx = try makeContext(files: [:])
         let r = CIWorkflowPresenceRule().evaluate(ctx)
-        guard case .warn(_, let reason, _) = r else {
+        guard case .warn(_, let reason, _, _) = r else {
             return XCTFail("expected .warn, got \(r)")
         }
         XCTAssertTrue(reason.contains("ci.yml"))
@@ -52,7 +52,7 @@ final class CIDoctorRulesTests: XCTestCase {
     func test_githubRemote_warnsWhenNotAGitRepo() throws {
         let ctx = try makeContext(files: [:])
         let r = GitHubRemoteRule().evaluate(ctx)
-        guard case .warn(_, let reason, _) = r else {
+        guard case .warn(_, let reason, _, _) = r else {
             return XCTFail("expected .warn, got \(r)")
         }
         XCTAssertTrue(reason.contains("Not a git repository"))
@@ -66,7 +66,7 @@ final class CIDoctorRulesTests: XCTestCase {
             """,
         ])
         let r = GitHubRemoteRule().evaluate(ctx)
-        guard case .warn(let title, _, _) = r else {
+        guard case .warn(let title, _, _, _) = r else {
             return XCTFail("expected .warn, got \(r)")
         }
         XCTAssertEqual(title, "github remote")

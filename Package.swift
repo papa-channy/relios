@@ -12,6 +12,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
         .package(url: "https://github.com/dduan/TOMLDecoder.git", from: "0.2.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
     ],
     targets: [
         .executableTarget(
@@ -31,6 +32,7 @@ let package = Package(
             dependencies: [
                 "ReliosSupport",
                 .product(name: "TOMLDecoder", package: "TOMLDecoder"),
+                .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
         .target(
@@ -41,6 +43,13 @@ let package = Package(
             dependencies: [
                 "ReliosCore",
                 "ReliosSupport",
+            ]
+        ),
+        .testTarget(
+            name: "ReliosCLITests",
+            dependencies: [
+                "ReliosCLI",
+                "ReliosCore",
             ]
         ),
     ]

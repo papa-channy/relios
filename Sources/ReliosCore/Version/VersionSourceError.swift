@@ -9,6 +9,16 @@ public enum VersionSourceError: Error, Equatable {
 }
 
 extension VersionSourceError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .unreadable:              return DiagnosticCode("VERSION_SOURCE_UNREADABLE")
+        case .versionPatternUnmatched: return DiagnosticCode("VERSION_PATTERN_UNMATCHED")
+        case .buildPatternUnmatched:   return DiagnosticCode("BUILD_PATTERN_UNMATCHED")
+        case .unparseableSemver:       return DiagnosticCode("VERSION_UNPARSEABLE")
+        case .unparseableBuild:        return DiagnosticCode("BUILD_NUMBER_UNPARSEABLE")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .unreadable(let path, _):

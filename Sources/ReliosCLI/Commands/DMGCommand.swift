@@ -12,10 +12,14 @@ public struct DMGCommand: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Show subprocess output.")
     public var verbose: Bool = false
 
+    @OptionGroup public var global: GlobalOptions
+
     public init() {}
 
     public func run() throws {
         let root = FileManager.default.currentDirectoryPath
+        let lock = try acquireProjectLock(command: "dmg", projectRoot: root, json: global.isJSON)
+        defer { lock.release(projectRoot: root) }
         let fs = RealFileSystem()
         let specPath = root + "/relios.toml"
 
@@ -23,9 +27,14 @@ public struct DMGCommand: ParsableCommand {
         do {
             spec = try SpecLoader(fs: fs).load(from: specPath)
         } catch let error as SpecLoadError {
-            print("[dmg] failed")
-            print("  Reason: \(error.shortReason)")
-            print("  Fix: \(error.shortFix)")
+            if global.isJSON {
+                Report.failure(command: "dmg", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+            } else {
+                print("[dmg] failed")
+                print("  Reason: \(error.shortReason)")
+                print("  Fix: \(error.shortFix)")
+            }
             throw ExitCode.failure
         }
 
@@ -40,19 +49,31 @@ public struct DMGCommand: ParsableCommand {
         }()
 
         let builder = DMGBuilder(fs: fs, process: RealProcessRunner())
+        let output: DMGBuilder.Output
         do {
-            let output = try builder.run(
+            output = try builder.run(
                 spec: spec,
                 projectRoot: root,
                 version: version
             )
-            print("✓ Created \(relativePath(output.dmgPath, root: root))")
         } catch let error as DMGError {
-            print("[dmg] failed")
-            print("  Reason: \(error.shortReason)")
-            print("  Fix: \(error.shortFix)")
+            if global.isJSON {
+                Report.failure(command: "dmg", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+            } else {
+                print("[dmg] failed")
+                print("  Reason: \(error.shortReason)")
+                print("  Fix: \(error.shortFix)")
+            }
             throw ExitCode.failure
         }
+
+        if global.isJSON {
+            Report.success(command: "dmg", data: output)
+            return
+        }
+
+        print("✓ Created \(relativePath(output.dmgPath, root: root))")
     }
 
     private func relativePath(_ abs: String, root: String) -> String {

@@ -6,6 +6,14 @@ public enum CIError: Error, Equatable {
 }
 
 extension CIError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .specMissing:    return DiagnosticCode("SPEC_NOT_FOUND")
+        case .workflowExists: return DiagnosticCode("CI_WORKFLOW_EXISTS")
+        case .writeFailed:    return DiagnosticCode("CI_WRITE_FAILED")
+        }
+    }
+
     public var shortReason: String {
         switch self {
         case .specMissing(let path):

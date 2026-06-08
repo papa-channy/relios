@@ -38,3 +38,35 @@ public enum ManifestError: Error, Equatable {
     case latestNotFound(path: String)
     case decodingFailed(path: String, underlying: String)
 }
+
+extension ManifestError {
+    public var code: DiagnosticCode {
+        switch self {
+        case .encodingFailed: return DiagnosticCode("MANIFEST_ENCODING_FAILED")
+        case .latestNotFound: return DiagnosticCode("MANIFEST_NOT_FOUND")
+        case .decodingFailed: return DiagnosticCode("MANIFEST_DECODING_FAILED")
+        }
+    }
+
+    public var shortReason: String {
+        switch self {
+        case .encodingFailed:
+            return "Could not encode the release manifest"
+        case .latestNotFound:
+            return "No release manifest found"
+        case .decodingFailed(let path, let underlying):
+            return "Could not read release manifest at \(path): \(underlying)"
+        }
+    }
+
+    public var shortFix: String {
+        switch self {
+        case .encodingFailed:
+            return "This is a bug — report it"
+        case .latestNotFound:
+            return "Run `relios release` first"
+        case .decodingFailed:
+            return "The manifest may be corrupt; re-run `relios release`"
+        }
+    }
+}

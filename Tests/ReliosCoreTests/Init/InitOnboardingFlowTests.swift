@@ -220,7 +220,7 @@ final class InitOnboardingFlowTests: XCTestCase {
 
         // XcodeProjectGuardRule must pass (passthrough + xcode markers = ok)
         let guardResult = XcodeProjectGuardRule().evaluate(context)
-        if case .fail(_, let reason, _) = guardResult {
+        if case .fail(_, let reason, _, _) = guardResult {
             XCTFail("XcodeProjectGuardRule should pass for passthrough, got: \(reason)")
         }
 

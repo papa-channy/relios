@@ -228,7 +228,7 @@ final class ReleasePipelineTests: XCTestCase {
         )) { error in
             guard let e = error as? ReleaseError else { return XCTFail("wrong type") }
             XCTAssertEqual(e.step, .preflightValidation)
-            if case .preflightFailed(let title, _, _) = e {
+            if case .preflightFailed(let title, _, _, _) = e {
                 XCTAssertEqual(title, "bundle_id is empty")
             } else {
                 XCTFail("expected .preflightFailed, got \(e)")
@@ -510,5 +510,139 @@ final class ReleasePipelineTests: XCTestCase {
         XCTAssertEqual(dict["CFBundleShortVersionString"] as? String, "1.2.4")
         XCTAssertEqual(dict["CFBundleVersion"] as? String, "1")
         XCTAssertEqual(dict["CFBundleIdentifier"] as? String, "com.chan.portfolio-manager")
+    }
+
+    // MARK: - version-before-build ordering (artifact version consistency)
+
+    /// Regression: the version source MUST be bumped before the build runs, so
+    /// the compiled binary embeds the SAME version that Info.plist/manifest
+    /// declare. We capture the on-disk source at the moment the build command
+    /// executes and assert it already holds the new version.
+    func test_versionSourceIsUpdatedBeforeBuildRunsInNonDryRun() throws {
+        let fs = makeReadyFileSystem()
+        let spec = try loadSpec(from: fs)
+        let process = makeInstallReadyProcess()
+
+        var sourceAtBuildTime: String?
+        process.sideEffects["swift build"] = {
+            sourceAtBuildTime = try? fs.readUTF8(at: "/proj/DesignMe/App/AppVersion.swift")
+        }
+
+        _ = try ReleasePipeline(fs: fs, process: process).run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: false)
+        )
+
+        let captured = try XCTUnwrap(sourceAtBuildTime, "build command should have run")
+        XCTAssertTrue(
+            captured.contains(#"static let current = "1.2.4""#),
+            "version source must be bumped BEFORE the build so the binary embeds the new version; got:\n\(captured)"
+        )
+        XCTAssertTrue(captured.contains(#"static let build = "1""#))
+    }
+
+    /// Passthrough must also bump before the (xcodebuild) build runs.
+    func test_versionSourceIsUpdatedBeforeBuildInPassthrough() throws {
+        let fs = makePassthroughFileSystem()
+        let spec = try SpecLoader(fs: fs).load(from: "/proj/relios.toml")
+        let process = makeInstallReadyProcess()
+
+        var sourceAtBuildTime: String?
+        process.sideEffects["xcodebuild -scheme"] = {
+            sourceAtBuildTime = try? fs.readUTF8(at: "/proj/AppVersion.swift")
+        }
+
+        _ = try ReleasePipeline(fs: fs, process: process).run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: false)
+        )
+
+        let captured = try XCTUnwrap(sourceAtBuildTime, "xcodebuild should have run")
+        XCTAssertTrue(
+            captured.contains(#"static let current = "1.2.4""#),
+            "passthrough must bump the source before xcodebuild runs; got:\n\(captured)"
+        )
+    }
+
+    /// Dry-run builds the CURRENT (unbumped) source and writes nothing.
+    func test_dryRunBuildsCurrentSourceWithoutBumping() throws {
+        let fs = makeReadyFileSystem()
+        let spec = try loadSpec(from: fs)
+        let process = MockProcessRunner(result: .success)
+
+        var sourceAtBuildTime: String?
+        process.sideEffects["swift build"] = {
+            sourceAtBuildTime = try? fs.readUTF8(at: "/proj/DesignMe/App/AppVersion.swift")
+        }
+
+        _ = try ReleasePipeline(fs: fs, process: process).run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: true)
+        )
+
+        let captured = try XCTUnwrap(sourceAtBuildTime)
+        XCTAssertTrue(
+            captured.contains(#"static let current = "1.2.3""#),
+            "dry-run must build the current source unchanged"
+        )
+        XCTAssertEqual(fs.writeLog, [], "dry-run still writes nothing")
+    }
+
+    /// A failed build must restore the version source (the "failed build never
+    /// advances the version" guarantee), now that the bump happens first.
+    func test_buildFailureRestoresVersionSourceInNonDryRun() throws {
+        let fs = makeReadyFileSystem()
+        let spec = try loadSpec(from: fs)
+        // preflight `which` succeeds; the actual build fails.
+        let process = MockProcessRunner(result: .failure(exitCode: 1, stderr: "compile error"))
+        process.commandOverrides["which"] = .success
+        process.commandOverrides["pgrep"] = ProcessResult(exitCode: 1, stdout: "", stderr: "")
+
+        XCTAssertThrowsError(try ReleasePipeline(fs: fs, process: process).run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: false)
+        )) { error in
+            guard let e = error as? ReleaseError else { return XCTFail("wrong type") }
+            XCTAssertEqual(e.step, .build)
+        }
+
+        let source = try fs.readUTF8(at: "/proj/DesignMe/App/AppVersion.swift")
+        XCTAssertTrue(
+            source.contains(#"static let current = "1.2.3""#),
+            "failed build must restore the original version; got:\n\(source)"
+        )
+        XCTAssertTrue(source.contains(#"static let build = "17""#))
+    }
+
+    /// If the artifact isn't found after a "successful" build, the version
+    /// source must also be restored (no usable artifact → don't advance).
+    func test_artifactNotFoundRestoresVersionSourceInNonDryRun() throws {
+        let fs = InMemoryFileSystem(files: [
+            "/proj/relios.toml": SampleTOMLs.fullSample,
+            "/proj/DesignMe/App/AppVersion.swift": appVersionSwift,
+            // NO /proj/.build/release/PortfolioManager
+        ])
+        let spec = try loadSpec(from: fs)
+        let process = makeInstallReadyProcess()
+
+        XCTAssertThrowsError(try ReleasePipeline(fs: fs, process: process).run(
+            spec: spec,
+            projectRoot: "/proj",
+            options: ReleaseOptions(bump: .patch, dryRun: false)
+        )) { error in
+            guard let e = error as? ReleaseError else { return XCTFail("wrong type") }
+            XCTAssertEqual(e.step, .verifyBuildArtifact)
+        }
+
+        let source = try fs.readUTF8(at: "/proj/DesignMe/App/AppVersion.swift")
+        XCTAssertTrue(
+            source.contains(#"static let current = "1.2.3""#),
+            "artifact-not-found must restore the original version; got:\n\(source)"
+        )
+        XCTAssertTrue(source.contains(#"static let build = "17""#))
     }
 }

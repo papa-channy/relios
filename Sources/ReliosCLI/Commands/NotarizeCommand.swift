@@ -15,10 +15,14 @@ public struct NotarizeCommand: ParsableCommand {
     @Option(name: .long, help: "Override [notarize].timeout_seconds.")
     public var timeout: Int?
 
+    @OptionGroup public var global: GlobalOptions
+
     public init() {}
 
     public func run() throws {
         let root = FileManager.default.currentDirectoryPath
+        let lock = try acquireProjectLock(command: "notarize", projectRoot: root, json: global.isJSON)
+        defer { lock.release(projectRoot: root) }
         let fs = RealFileSystem()
         let specPath = root + "/relios.toml"
 
@@ -26,16 +30,15 @@ public struct NotarizeCommand: ParsableCommand {
         do {
             spec = try SpecLoader(fs: fs).load(from: specPath)
         } catch let error as SpecLoadError {
-            printFail("spec load", error.shortReason, error.shortFix)
+            fail(stage: "spec load", code: error.code,
+                 reason: error.shortReason, fix: error.shortFix)
             throw ExitCode.failure
         }
 
         guard let notarize = spec.notarize, notarize.enabled else {
-            printFail(
-                "notarize",
-                NotarizeError.disabled.shortReason,
-                NotarizeError.disabled.shortFix
-            )
+            fail(stage: "notarize", code: NotarizeError.disabled.code,
+                 reason: NotarizeError.disabled.shortReason,
+                 fix: NotarizeError.disabled.shortFix)
             throw ExitCode.failure
         }
 
@@ -51,7 +54,8 @@ public struct NotarizeCommand: ParsableCommand {
                 explicitPath: path
             )
         } catch let error as NotarizeError {
-            printFail("notarize", error.shortReason, error.shortFix)
+            fail(stage: "notarize", code: error.code,
+                 reason: error.shortReason, fix: error.shortFix)
             throw ExitCode.failure
         }
 
@@ -62,7 +66,8 @@ public struct NotarizeCommand: ParsableCommand {
                 ProcessInfo.processInfo.environment
             )
         } catch let error as NotarizeError {
-            printFail("notarize", error.shortReason, error.shortFix)
+            fail(stage: "notarize", code: error.code,
+                 reason: error.shortReason, fix: error.shortFix)
             throw ExitCode.failure
         }
 
@@ -72,14 +77,18 @@ public struct NotarizeCommand: ParsableCommand {
                 signing: specTeam,
                 notarize: credentials.teamID
             )
-            printFail("notarize", err.shortReason, err.shortFix)
+            fail(stage: "notarize", code: err.code,
+                 reason: err.shortReason, fix: err.shortFix)
             throw ExitCode.failure
         }
 
         // Submit + staple.
         let notarizer = Notarizer(fs: fs, process: RealProcessRunner())
-        print("→ Submitting \(relative(artifact, root: root)) to Apple notarization")
-        print("  (may take 2-15 minutes depending on Apple queue load)")
+        // Progress lines would corrupt the single JSON object on stdout.
+        if !global.isJSON {
+            print("→ Submitting \(relative(artifact, root: root)) to Apple notarization")
+            print("  (may take 2-15 minutes depending on Apple queue load)")
+        }
         let output: Notarizer.Output
         do {
             output = try notarizer.notarize(
@@ -88,14 +97,30 @@ public struct NotarizeCommand: ParsableCommand {
                 timeoutSeconds: timeout ?? notarize.timeoutSeconds
             )
         } catch let error as NotarizeError {
-            printFail("notarize", error.shortReason, error.shortFix)
+            fail(stage: "notarize", code: error.code,
+                 reason: error.shortReason, fix: error.shortFix)
             throw ExitCode.failure
+        }
+
+        if global.isJSON {
+            Report.success(command: "notarize", data: output)
+            return
         }
 
         print("✓ Notarized + stapled \(relative(output.stapledArtifactPath, root: root))")
     }
 
     // MARK: - helpers
+
+    /// Routes a failure to JSON (Report.failure) or human (printFail) depending
+    /// on the resolved format. Caller still throws ExitCode.failure.
+    private func fail(stage: String, code: DiagnosticCode, reason: String, fix: String) {
+        if global.isJSON {
+            Report.failure(command: "notarize", code: code, reason: reason, fix: fix)
+        } else {
+            printFail(stage, reason, fix)
+        }
+    }
 
     private func detectVersion(
         spec: ReleaseSpec,

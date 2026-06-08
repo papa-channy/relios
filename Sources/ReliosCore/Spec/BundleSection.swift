@@ -5,7 +5,7 @@ public struct BundleSection: Decodable, Equatable, Sendable {
 
     /// Controls whether Relios assembles a .app from scratch or treats
     /// `output_path` as a pre-built .app (e.g. from xcodebuild).
-    public enum Mode: String, Decodable, Equatable, Sendable {
+    public enum Mode: String, Decodable, Encodable, Equatable, Sendable {
         /// Default: Relios copies the binary, resources, and icon into a
         /// freshly created .app bundle and generates Info.plist.
         case assembly

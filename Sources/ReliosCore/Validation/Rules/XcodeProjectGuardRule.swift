@@ -16,19 +16,20 @@ public struct XcodeProjectGuardRule: ValidationRule {
         let markers = Self.detectXcodeMarkers(root: root, fs: context.fs)
 
         if markers.isEmpty {
-            return .ok(title: "project type compatible")
+            return .ok(title: "project type compatible", code: DiagnosticCode("PROJECT_TYPE_OK"))
         }
 
         // Passthrough mode explicitly opts in to the "xcodebuild → Relios
         // handles the rest" workflow, so Xcode markers are expected.
         if context.spec.bundle.mode == .passthrough {
-            return .ok(title: "project type compatible (passthrough)")
+            return .ok(title: "project type compatible (passthrough)", code: DiagnosticCode("PROJECT_TYPE_OK"))
         }
 
         return .fail(
             title: "Xcode project detected with assembly mode",
             reason: "Found \(markers.joined(separator: ", ")) — Relios bundle assembly is incompatible with Xcode-managed projects",
-            fix: "Set [bundle].mode = \"passthrough\" and [project].type = \"xcodebuild\" in relios.toml, or remove Xcode project files for pure SwiftPM."
+            fix: "Set [bundle].mode = \"passthrough\" and [project].type = \"xcodebuild\" in relios.toml, or remove Xcode project files for pure SwiftPM.",
+            code: DiagnosticCode("PROJECT_TYPE_MISMATCH")
         )
     }
 

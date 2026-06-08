@@ -15,8 +15,12 @@ import ReliosSupport
 /// external behavior. The re-zip path shells out to `ditto` for parity
 /// with the CI `Package .app` step's archive format.
 public struct Notarizer: Sendable {
-    public struct Output: Equatable, Sendable {
+    public struct Output: Equatable, Sendable, Encodable {
         public let stapledArtifactPath: String
+
+        private enum CodingKeys: String, CodingKey {
+            case stapledArtifactPath = "stapled_artifact_path"
+        }
     }
 
     private let fs: any FileSystem

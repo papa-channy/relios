@@ -9,20 +9,13 @@ public struct DoctorCommand: ParsableCommand {
         abstract: "Diagnose whether the project is ready to release."
     )
 
-    // Hidden until the first auto-fix lands. Surfacing the flag in --help
-    // before any fix is implemented is a UX debt — re-expose by switching
-    // visibility back to `.default` once the first fix exists.
-    @Flag(
-        name: .long,
-        help: ArgumentHelp(
-            "Apply safe automatic fixes.",
-            visibility: .private
-        )
-    )
+    @Flag(name: .long, help: "Apply safe automatic fixes, then re-run the checks.")
     public var fix: Bool = false
 
     @Flag(name: .shortAndLong, help: "Verbose output.")
     public var verbose: Bool = false
+
+    @OptionGroup public var global: GlobalOptions
 
     public init() {}
 
@@ -35,7 +28,12 @@ public struct DoctorCommand: ParsableCommand {
         do {
             spec = try SpecLoader(fs: fs).load(from: specPath)
         } catch let error as SpecLoadError {
-            printSpecLoadFailure(error)
+            if global.isJSON {
+                Report.failure(command: "doctor", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+            } else {
+                printSpecLoadFailure(error)
+            }
             throw ExitCode.failure
         }
 
@@ -47,6 +45,16 @@ public struct DoctorCommand: ParsableCommand {
             process: process
         )
 
+        // --fix applies safe, additive fixes before diagnosing, so the
+        // re-run below reflects the post-fix state.
+        if fix {
+            let fixer = DoctorFixer(fixes: [
+                InstallPathFix(),
+            ])
+            let results = fixer.run(context)
+            if !global.isJSON { printFixResults(results) }
+        }
+
         let runner = DoctorRunner(rules: [
             XcodeProjectGuardRule(),
             SpecValidityRule(),
@@ -56,15 +64,21 @@ public struct DoctorCommand: ParsableCommand {
             SigningReadinessRule(),
             DMGReadinessRule(),
             NotarizeReadinessRule(),
+            UpdateReadinessRule(),
+            PathSafetyRule(),
+            BuildTrustRule(),
         ])
 
         let diagnostics = runner.run(context)
 
-        for diagnostic in diagnostics {
-            printDiagnostic(diagnostic)
+        if global.isJSON {
+            Report.checks(command: "doctor", diagnostics: diagnostics)
+        } else {
+            for diagnostic in diagnostics {
+                printDiagnostic(diagnostic)
+            }
+            printSummary(diagnostics)
         }
-
-        printSummary(diagnostics)
 
         if diagnostics.contains(where: { $0.status == .fail }) {
             throw ExitCode.failure
@@ -72,6 +86,24 @@ public struct DoctorCommand: ParsableCommand {
     }
 
     // MARK: - output
+
+    private func printFixResults(_ results: [FixResult]) {
+        guard !results.isEmpty else {
+            print("Nothing to fix.")
+            print("")
+            return
+        }
+        for r in results {
+            switch r.status {
+            case .fixed:
+                print("[fixed] \(r.title)")
+            case .failed:
+                print("[fail] \(r.title)")
+            }
+            print("  \(r.detail)")
+        }
+        print("")
+    }
 
     private func printDiagnostic(_ d: Diagnostic) {
         let symbol: String

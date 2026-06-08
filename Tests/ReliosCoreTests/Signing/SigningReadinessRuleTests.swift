@@ -37,7 +37,7 @@ final class SigningReadinessRuleTests: XCTestCase {
     func test_developerID_failsIfIdentityMissing() {
         let rule = SigningReadinessRule()
         let ctx = context(for: spec(mode: .developerID), process: MockProcessRunner(result: .success))
-        guard case .fail(let title, _, _) = rule.evaluate(ctx) else {
+        guard case .fail(let title, _, _, _) = rule.evaluate(ctx) else {
             return XCTFail("expected fail")
         }
         XCTAssertTrue(title.contains("identity"))
@@ -50,7 +50,7 @@ final class SigningReadinessRuleTests: XCTestCase {
             process: MockProcessRunner(result: .success)
         )
         // identity present but teamID explicitly nil — rule checks both.
-        guard case .fail(let title, _, _) = rule.evaluate(ctx) else {
+        guard case .fail(let title, _, _, _) = rule.evaluate(ctx) else {
             return XCTFail("expected fail")
         }
         XCTAssertTrue(title.contains("team_id"))

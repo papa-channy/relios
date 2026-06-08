@@ -18,10 +18,14 @@ public struct RollbackCommand: ParsableCommand {
     @Flag(name: .shortAndLong, help: "Verbose output.")
     public var verbose: Bool = false
 
+    @OptionGroup public var global: GlobalOptions
+
     public init() {}
 
     public func run() throws {
         let root = FileManager.default.currentDirectoryPath
+        let lock = try acquireProjectLock(command: "rollback", projectRoot: root, json: global.isJSON)
+        defer { lock.release(projectRoot: root) }
         let fs = RealFileSystem()
         let process = RealProcessRunner()
         let specPath = root + "/relios.toml"
@@ -30,8 +34,13 @@ public struct RollbackCommand: ParsableCommand {
         do {
             spec = try SpecLoader(fs: fs).load(from: specPath)
         } catch let error as SpecLoadError {
-            print("[rollback] failed: \(error.shortReason)")
-            print("  Fix: \(error.shortFix)")
+            if global.isJSON {
+                Report.failure(command: "rollback", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+            } else {
+                print("[rollback] failed: \(error.shortReason)")
+                print("  Fix: \(error.shortFix)")
+            }
             throw ExitCode.failure
         }
 
@@ -45,9 +54,19 @@ public struct RollbackCommand: ParsableCommand {
                 noOpen: noOpen
             )
         } catch let error as RollbackError {
-            print("[rollback] failed: \(error.shortReason)")
-            print("  Fix: \(error.shortFix)")
+            if global.isJSON {
+                Report.failure(command: "rollback", code: error.code,
+                               reason: error.shortReason, fix: error.shortFix)
+            } else {
+                print("[rollback] failed: \(error.shortReason)")
+                print("  Fix: \(error.shortFix)")
+            }
             throw ExitCode.failure
+        }
+
+        if global.isJSON {
+            Report.success(command: "rollback", data: result)
+            return
         }
 
         print("✓ Restored from: \(result.restoredFrom)")

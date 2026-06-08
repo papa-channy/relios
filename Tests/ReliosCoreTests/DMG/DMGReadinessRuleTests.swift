@@ -6,7 +6,7 @@ final class DMGReadinessRuleTests: XCTestCase {
 
     func test_skippedWhenDMGAbsent() throws {
         let ctx = try makeContext(dmgTOML: nil, dmgbuildExitCode: 0)
-        guard case .ok(let title) = DMGReadinessRule().evaluate(ctx) else {
+        guard case .ok(let title, _) = DMGReadinessRule().evaluate(ctx) else {
             return XCTFail("expected .ok")
         }
         XCTAssertTrue(title.contains("skipped"))
@@ -14,7 +14,7 @@ final class DMGReadinessRuleTests: XCTestCase {
 
     func test_skippedWhenDMGDisabled() throws {
         let ctx = try makeContext(dmgTOML: "[dmg]\nenabled = false\n", dmgbuildExitCode: 0)
-        guard case .ok(let title) = DMGReadinessRule().evaluate(ctx) else {
+        guard case .ok(let title, _) = DMGReadinessRule().evaluate(ctx) else {
             return XCTFail("expected .ok")
         }
         XCTAssertTrue(title.contains("skipped"))
@@ -22,7 +22,7 @@ final class DMGReadinessRuleTests: XCTestCase {
 
     func test_okWhenDmgbuildAvailable() throws {
         let ctx = try makeContext(dmgTOML: "[dmg]\nenabled = true\n", dmgbuildExitCode: 0)
-        guard case .ok(let title) = DMGReadinessRule().evaluate(ctx) else {
+        guard case .ok(let title, _) = DMGReadinessRule().evaluate(ctx) else {
             return XCTFail("expected .ok")
         }
         XCTAssertEqual(title, "dmgbuild available")
@@ -30,7 +30,7 @@ final class DMGReadinessRuleTests: XCTestCase {
 
     func test_warnsWhenDmgbuildMissing() throws {
         let ctx = try makeContext(dmgTOML: "[dmg]\nenabled = true\n", dmgbuildExitCode: 1)
-        guard case .warn(_, let reason, let fix) = DMGReadinessRule().evaluate(ctx) else {
+        guard case .warn(_, let reason, let fix, _) = DMGReadinessRule().evaluate(ctx) else {
             return XCTFail("expected .warn")
         }
         XCTAssertTrue(reason.contains("dmgbuild"))

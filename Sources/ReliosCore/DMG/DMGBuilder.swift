@@ -14,8 +14,12 @@ import ReliosSupport
 ///
 /// Inputs are read from the `[dmg]` section and `[bundle].output_path`.
 public struct DMGBuilder: Sendable {
-    public struct Output: Equatable, Sendable {
+    public struct Output: Equatable, Sendable, Encodable {
         public let dmgPath: String
+
+        private enum CodingKeys: String, CodingKey {
+            case dmgPath = "dmg_path"
+        }
     }
 
     private let fs: any FileSystem

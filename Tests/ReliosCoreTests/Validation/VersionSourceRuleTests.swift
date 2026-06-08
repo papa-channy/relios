@@ -30,7 +30,7 @@ final class VersionSourceRuleTests: XCTestCase {
 
         let result = VersionSourceRule().evaluate(context)
 
-        if case .ok(let title) = result {
+        if case .ok(let title, _) = result {
             XCTAssertEqual(title, "version source readable")
         } else {
             XCTFail("expected .ok, got \(result)")
@@ -49,7 +49,7 @@ final class VersionSourceRuleTests: XCTestCase {
 
         let result = VersionSourceRule().evaluate(context)
 
-        if case .fail(let title, let reason, let fix) = result {
+        if case .fail(let title, let reason, let fix, _) = result {
             XCTAssertEqual(title, "version source file missing")
             XCTAssertTrue(reason.contains("DesignMe/App/AppVersion.swift"),
                           "reason should mention the configured source file")
@@ -72,7 +72,7 @@ final class VersionSourceRuleTests: XCTestCase {
 
         let result = VersionSourceRule().evaluate(context)
 
-        if case .fail(let title, _, _) = result {
+        if case .fail(let title, _, _, _) = result {
             XCTAssertEqual(title, "version source unreadable")
         } else {
             XCTFail("expected .fail, got \(result)")

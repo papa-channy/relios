@@ -8,7 +8,7 @@ public struct BuildReadinessRule: ValidationRule {
 
     public func evaluate(_ context: ValidationContext) -> RuleResult {
         guard let process = context.process else {
-            return .ok(title: "build tool check skipped")
+            return .ok(title: "build tool check skipped", code: DiagnosticCode("BUILD_TOOL_OK"))
         }
 
         let tool: String
@@ -29,16 +29,18 @@ public struct BuildReadinessRule: ValidationRule {
             return .fail(
                 title: "\(tool) not available",
                 reason: "Could not check for \(tool): \(error)",
-                fix: fixHint
+                fix: fixHint,
+                code: DiagnosticCode("BUILD_TOOL_NOT_FOUND")
             )
         }
         guard result.exitCode == 0 else {
             return .fail(
                 title: "\(tool) not found",
                 reason: "`\(tool)` is not in PATH",
-                fix: fixHint
+                fix: fixHint,
+                code: DiagnosticCode("BUILD_TOOL_NOT_FOUND")
             )
         }
-        return .ok(title: "build tool available (\(tool))")
+        return .ok(title: "build tool available (\(tool))", code: DiagnosticCode("BUILD_TOOL_AVAILABLE"))
     }
 }

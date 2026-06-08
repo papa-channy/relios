@@ -13,7 +13,7 @@ final class ReadinessRuleTests: XCTestCase {
 
         let result = BuildReadinessRule().evaluate(context)
 
-        if case .ok(let title) = result {
+        if case .ok(let title, _) = result {
             XCTAssertEqual(title, "build tool available (swift)")
         } else {
             XCTFail("expected .ok, got \(result)")
@@ -26,7 +26,7 @@ final class ReadinessRuleTests: XCTestCase {
 
         let result = BuildReadinessRule().evaluate(context)
 
-        if case .fail(let title, _, let fix) = result {
+        if case .fail(let title, _, let fix, _) = result {
             XCTAssertEqual(title, "swift not found")
             XCTAssertTrue(fix.contains("Command Line Tools"))
         } else {
@@ -50,7 +50,7 @@ final class ReadinessRuleTests: XCTestCase {
 
         let result = BuildReadinessRule().evaluate(context)
 
-        if case .fail(let title, _, let fix) = result {
+        if case .fail(let title, _, let fix, _) = result {
             XCTAssertEqual(title, "xcodebuild not found")
             XCTAssertTrue(fix.contains("Install Xcode"),
                           "fix should point to full Xcode, got: \(fix)")
@@ -75,7 +75,7 @@ final class ReadinessRuleTests: XCTestCase {
 
         let result = InstallPathRule().evaluate(context)
 
-        if case .ok(let title) = result {
+        if case .ok(let title, _) = result {
             XCTAssertEqual(title, "install path writable")
         } else {
             XCTFail("expected .ok, got \(result)")
@@ -92,7 +92,7 @@ final class ReadinessRuleTests: XCTestCase {
 
         let result = InstallPathRule().evaluate(context)
 
-        if case .warn(let title, _, _) = result {
+        if case .warn(let title, _, _, _) = result {
             XCTAssertEqual(title, "install path parent missing")
         } else {
             XCTFail("expected .warn, got \(result)")
@@ -107,7 +107,7 @@ final class ReadinessRuleTests: XCTestCase {
 
         let result = SigningReadinessRule().evaluate(context)
 
-        if case .ok(let title) = result {
+        if case .ok(let title, _) = result {
             XCTAssertEqual(title, "signing tool available (codesign)")
         } else {
             XCTFail("expected .ok, got \(result)")
@@ -120,7 +120,7 @@ final class ReadinessRuleTests: XCTestCase {
 
         let result = SigningReadinessRule().evaluate(context)
 
-        if case .fail(let title, _, let fix) = result {
+        if case .fail(let title, _, let fix, _) = result {
             XCTAssertEqual(title, "codesign not found")
             XCTAssertTrue(fix.contains("xcode-select"))
         } else {

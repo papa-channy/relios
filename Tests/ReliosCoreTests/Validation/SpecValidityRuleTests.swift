@@ -11,7 +11,7 @@ final class SpecValidityRuleTests: XCTestCase {
         let context = try makeContext(toml: SampleTOMLs.fullSample)
         let result = SpecValidityRule().evaluate(context)
 
-        if case .ok(let title) = result {
+        if case .ok(let title, _) = result {
             XCTAssertEqual(title, "spec valid")
         } else {
             XCTFail("expected .ok, got \(result)")
@@ -27,7 +27,7 @@ final class SpecValidityRuleTests: XCTestCase {
 
         let result = SpecValidityRule().evaluate(context)
 
-        if case .fail(let title, _, let fix) = result {
+        if case .fail(let title, _, let fix, _) = result {
             XCTAssertEqual(title, "app.name is empty")
             XCTAssertEqual(fix, "Set [app].name in relios.toml")
         } else {
@@ -44,7 +44,7 @@ final class SpecValidityRuleTests: XCTestCase {
 
         let result = SpecValidityRule().evaluate(context)
 
-        if case .fail(let title, _, _) = result {
+        if case .fail(let title, _, _, _) = result {
             XCTAssertEqual(title, "bundle_id is empty")
         } else {
             XCTFail("expected .fail, got \(result)")
@@ -60,7 +60,7 @@ final class SpecValidityRuleTests: XCTestCase {
 
         let result = SpecValidityRule().evaluate(context)
 
-        if case .fail(let title, _, _) = result {
+        if case .fail(let title, _, _, _) = result {
             XCTAssertEqual(title, "binary_target is empty")
         } else {
             XCTFail("expected .fail, got \(result)")
